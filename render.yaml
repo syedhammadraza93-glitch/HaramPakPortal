@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: haram-pak-staging-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: server
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24.22.3"
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://haram-pak-portal.vercel.app
+      - key: PUBLIC_WEBSITE_URL
+        value: https://haram-pak-repo-k67qe62hx-haram-pak.vercel.app
+      - key: DB_WARM_CONNECTIONS
+        value: "0"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: haram-pak-staging-db
+          property: connectionString
+databases:
+  - name: haram-pak-staging-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    databaseName: haram_pak_staging_db
+    user: haram_pak_staging_db_user
+    ipAllowList: []
