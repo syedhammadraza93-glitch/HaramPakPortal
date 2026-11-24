@@ -1,0 +1,2 @@
+ALTER TABLE "company_settings" ADD COLUMN "two_factor_enabled" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "company_settings" ADD COLUMN "two_factor_roles" jsonb DEFAULT '["SUPER_ADMIN","FINANCE_MANAGER"]'::jsonb NOT NULL;

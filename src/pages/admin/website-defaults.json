@@ -1,0 +1,330 @@
+{
+  "pageBanners": {
+    "about": {
+      "label": "ABOUT HARAM PAK",
+      "title": "20+ years serving pilgrims",
+      "description": "A Lahore-based Hajj and Umrah travel team helping pilgrims plan their journey to Makkah and Madinah.",
+      "image": "/images/madinah-courtyard.webp"
+    },
+    "flights": {
+      "label": "FLIGHT ASSISTANCE",
+      "title": "Flight tickets",
+      "description": "Share your route, travel dates and group size to ask about flights from Pakistan.",
+      "image": "/images/makkah-golden-hour.webp"
+    },
+    "gallery": {
+      "label": "DESTINATION GALLERY",
+      "title": "Makkah and Madinah",
+      "description": "Illustrated views of Masjid al-Haram and Masjid an-Nabawi, the two sacred mosques at the heart of Umrah travel.",
+      "image": "/images/makkah-golden-hour.webp"
+    },
+    "hajj": {
+      "label": "HAJJ SERVICES",
+      "title": "Plan your Hajj from Pakistan",
+      "description": "Talk to our Lahore team about Hajj registration, accommodations, transport and current availability.",
+      "image": "/images/makkah-at-night.webp"
+    },
+    "hotels": {
+      "label": "PILGRIM ACCOMMODATION",
+      "title": "Hotels in Makkah and Madinah",
+      "description": "Compare locations and ask our team about room types, walking routes and transport before you book.",
+      "image": "/images/madinah-courtyard.webp"
+    },
+    "services": {
+      "label": "TRAVEL SUPPORT",
+      "title": "Other travel services",
+      "description": "Speak with our team about tickets, local and international travel, ground transport and accommodation.",
+      "image": "/images/makkah-at-night.webp"
+    },
+    "tour-packages": {
+      "label": "PILGRIMAGE & GROUP TRAVEL",
+      "title": "Tour packages",
+      "description": "Explore Iran and Iraq Ziarat, Hajj and Umrah, or enquire about a trip tailored to your group.",
+      "image": ""
+    },
+    "umrah": {
+      "label": "UMRAH TRAVEL",
+      "title": "Umrah packages from Lahore",
+      "description": "Compare 15-day and 20-day group itineraries with direct flights planned from Lahore, or tailor your dates and accommodation.",
+      "image": "/images/makkah-golden-hour.webp"
+    },
+    "visas": {
+      "label": "TRAVEL DOCUMENTS",
+      "title": "Visa assistance",
+      "description": "Tell us where you’re travelling and when. Our team can help you understand the next steps for your journey.",
+      "image": ""
+    }
+  },
+  "packages": [
+    {
+      "id": "15-day-umrah-lahore",
+      "title": "15-Day Umrah from Lahore",
+      "category": "Group",
+      "label": "15 days · 14 nights",
+      "image": "/images/makkah-golden-hour.webp",
+      "imageAlt": "The Kaaba and Masjid al-Haram in Makkah at golden hour",
+      "summary": "A 14-night stay split between Makkah, Madinah, and a final return to Makkah.",
+      "duration": "15 days / 14 nights",
+      "departure": "Lahore · direct flight planned",
+      "stay": "8 nights in Makkah · 6 nights in Madinah",
+      "hotels": [
+        {
+          "city": "Makkah",
+          "name": "Al Kiswah Towers",
+          "note": "Ask about the route to Masjid al-Haram and transport options."
+        },
+        {
+          "city": "Madinah",
+          "name": "Najoom Al Khair",
+          "note": "Approximately 600 m from Masjid an-Nabawi. Ask us about the walking route."
+        }
+      ],
+      "itinerary": [
+        {
+          "city": "Makkah",
+          "nights": 5,
+          "hotel": "Al Kiswah Towers",
+          "note": "Begin your stay in Makkah and make time for Umrah and prayers at Masjid al-Haram."
+        },
+        {
+          "city": "Madinah",
+          "nights": 6,
+          "hotel": "Najoom Al Khair",
+          "note": "Spend six nights near Masjid an-Nabawi."
+        },
+        {
+          "city": "Makkah",
+          "nights": 3,
+          "hotel": "Al Kiswah Towers",
+          "note": "Return to Makkah for the final three nights before the journey home."
+        }
+      ]
+    },
+    {
+      "id": "20-day-umrah-lahore",
+      "title": "20-Day Umrah from Lahore",
+      "category": "Group",
+      "label": "20 days",
+      "image": "/images/madinah-courtyard.webp",
+      "imageAlt": "The courtyard and green dome of Masjid an-Nabawi in Madinah",
+      "summary": "A longer pilgrimage with stays in both holy cities and a direct flight planned from Lahore.",
+      "duration": "20 days",
+      "departure": "Lahore · direct flight planned",
+      "stay": "Makkah and Madinah · ask for the night split",
+      "hotels": [
+        {
+          "city": "Makkah",
+          "name": "Al Kiswah Towers",
+          "note": "Ask about the route to Masjid al-Haram and transport options."
+        },
+        {
+          "city": "Madinah",
+          "name": "Najoom Al Khair",
+          "note": "Approximately 600 m from Masjid an-Nabawi. Ask us about the walking route."
+        }
+      ]
+    },
+    {
+      "id": "custom-umrah",
+      "title": "Tailored Umrah",
+      "category": "Tailored",
+      "label": "Flexible dates",
+      "image": "/images/makkah-at-night.webp",
+      "imageAlt": "The Kaaba and illuminated courtyard of Masjid al-Haram at night",
+      "summary": "Build a journey around your family, preferred travel dates and accommodation needs.",
+      "duration": "Flexible",
+      "departure": "Share your preferred departure city",
+      "stay": "Choose your time in each city"
+    },
+    {
+      "id": "economy-umrah",
+      "title": "Economy Umrah",
+      "label": "Budget-focused",
+      "summary": "Ask for a quote that prioritizes essential travel arrangements and keeps accommodation costs in mind.",
+      "category": "Tailored",
+      "image": "/images/makkah-golden-hour.webp",
+      "imageAlt": "",
+      "duration": "Confirm with the team",
+      "departure": "Share your preferred departure city",
+      "stay": "Discuss accommodation in Makkah and Madinah"
+    },
+    {
+      "id": "standard-umrah",
+      "title": "Standard Umrah",
+      "label": "Flexible arrangements",
+      "summary": "Discuss a plan that balances your preferred hotels, flight options and budget.",
+      "category": "Tailored",
+      "image": "/images/madinah-courtyard.webp",
+      "imageAlt": "",
+      "duration": "Confirm with the team",
+      "departure": "Share your preferred departure city",
+      "stay": "Discuss accommodation in Makkah and Madinah"
+    },
+    {
+      "id": "premium-umrah",
+      "title": "Premium Umrah",
+      "label": "Preferred accommodation",
+      "summary": "Ask about upgraded accommodation, preferred flight times and private transfer options.",
+      "category": "Tailored",
+      "image": "/images/makkah-at-night.webp",
+      "imageAlt": "",
+      "duration": "Confirm with the team",
+      "departure": "Share your preferred departure city",
+      "stay": "Discuss accommodation in Makkah and Madinah"
+    },
+    {
+      "id": "family-umrah",
+      "title": "Family Umrah",
+      "label": "Family travel",
+      "summary": "Tell us about your room needs, group size and any mobility requirements.",
+      "category": "Tailored",
+      "image": "/images/madinah-courtyard.webp",
+      "imageAlt": "",
+      "duration": "Confirm with the team",
+      "departure": "Share your preferred departure city",
+      "stay": "Discuss accommodation in Makkah and Madinah"
+    },
+    {
+      "id": "ramadan-umrah",
+      "title": "Ramadan Umrah",
+      "label": "Seasonal travel",
+      "summary": "Ask which dates, rooms and flight options are available for your preferred Ramadan stay.",
+      "category": "Tailored",
+      "image": "/images/makkah-at-night.webp",
+      "imageAlt": "",
+      "duration": "Confirm with the team",
+      "departure": "Share your preferred departure city",
+      "stay": "Discuss accommodation in Makkah and Madinah"
+    }
+  ],
+  "homepage": {
+    "kicker": "HAJJ & UMRAH FROM PAKISTAN",
+    "headline": "Your Sacred Journey",
+    "emphasis": "Begins Here.",
+    "description": "Plan your Hajj or Umrah with a Lahore team that helps you choose flights, hotels and travel arrangements around your needs.",
+    "featuredPackageIds": [
+      "15-day-umrah-lahore",
+      "20-day-umrah-lahore",
+      "custom-umrah"
+    ]
+  },
+  "faqs": [
+    {
+      "question": "Which Umrah packages depart from Lahore?",
+      "answer": "Haram Pak offers 15-day and 20-day Umrah itineraries with direct flights planned from Lahore. Ask our team to confirm dates, airline, fares and seat availability for your group."
+    },
+    {
+      "question": "What is included in an Umrah package?",
+      "answer": "A quote can cover return flights, accommodation, visa assistance and ground transfers. Ask for a written breakdown of what is included in your itinerary before confirming."
+    },
+    {
+      "question": "Where do pilgrims stay in Makkah and Madinah?",
+      "answer": "The 15-day and 20-day itineraries list Al Kiswah Towers in Makkah and Najoom Al Khair in Madinah, approximately 600 m from Masjid an-Nabawi. Hotels and walking routes should be confirmed for your travel dates."
+    },
+    {
+      "question": "Can you help with visas and travel documents?",
+      "answer": "Yes. Share your itinerary and traveller details with our team so we can explain the current document checklist and visa process for your circumstances."
+    },
+    {
+      "question": "Can I tailor a package for my family?",
+      "answer": "Yes. Tell us your preferred dates, group size, room requirements and any mobility needs so we can discuss suitable hotels, flights and transfers."
+    },
+    {
+      "question": "How do I get a price and confirm a booking?",
+      "answer": "Request a quote with your travel month and group size. Our team can confirm availability and share the itinerary, total price and booking terms before you decide."
+    }
+  ],
+  "offices": [
+    {
+      "country": "Pakistan",
+      "code": "PK",
+      "phones": [
+        "+92 322 8054660",
+        "+92 300 7646658"
+      ],
+      "offices": [
+        {
+          "city": "Lahore",
+          "address": "Eden Tower, Main Boulevard, Gulberg III, Lahore, Pakistan",
+          "sample": false
+        },
+        {
+          "city": "Islamabad",
+          "address": "Suite 203, 18 Example Avenue, Islamabad, Pakistan",
+          "sample": true
+        },
+        {
+          "city": "Karachi",
+          "address": "Office 401, 25 Sample Boulevard, Karachi, Pakistan",
+          "sample": true
+        }
+      ]
+    },
+    {
+      "country": "Canada",
+      "code": "CA",
+      "phones": [
+        "+1 437 423 1246"
+      ],
+      "offices": [
+        {
+          "city": "Toronto, ON",
+          "address": "Suite 200, 18 Example Avenue, Toronto, ON, Canada",
+          "sample": true
+        },
+        {
+          "city": "Mississauga, ON",
+          "address": "Unit 110, 25 Sample Boulevard, Mississauga, ON, Canada",
+          "sample": true
+        }
+      ]
+    }
+  ],
+  "clients": [],
+  "ziarat": [
+    {
+      "title": "Iraq Ziarat",
+      "key": "iraq-ziarat",
+      "description": "Ask about itineraries covering the shrines of Imam Ali in Najaf and Imam Hussain and Hazrat Abbas in Karbala, with visits to Kufa, Kadhimiya and Samarra.",
+      "stops": "Najaf · Karbala · Kufa · Kadhimiya · Samarra"
+    },
+    {
+      "title": "Iran Ziarat",
+      "key": "iran-ziarat",
+      "description": "Explore a route to the shrine of Imam Reza in Mashhad and the shrine of Hazrat Fatima Masumeh and Jamkaran Mosque in Qom.",
+      "stops": "Mashhad · Qom"
+    },
+    {
+      "title": "Iran and Iraq Ziarat",
+      "key": "iran-iraq-ziarat",
+      "description": "Share your preferred cities and travel month to discuss a combined itinerary.",
+      "stops": "Multi-country itinerary"
+    },
+    {
+      "title": "Arbaeen Ziarat",
+      "key": "arbaeen",
+      "description": "Ask about seasonal travel to Karbala for Arbaeen and options around the Najaf-to-Karbala pilgrimage route.",
+      "stops": "Najaf · Karbala"
+    }
+  ],
+  "visas": [
+    {
+      "title": "Pilgrimage travel",
+      "copy": "Ask about visa assistance for your Hajj, Umrah or Ziarat itinerary."
+    },
+    {
+      "title": "International visits",
+      "copy": "Share your destination, nationality and expected travel dates so our team can explain which services are available."
+    },
+    {
+      "title": "Document guidance",
+      "copy": "Request a checklist and ask how to share your documents securely. Visa decisions rest with the relevant authorities."
+    }
+  ],
+  "contact": {
+    "description": "Speak with our Pakistan or Canada team about your pilgrimage, tour, visa or flight booking.",
+    "email": "info@harampak.pk",
+    "phone": "+92 322 8054660",
+    "internationalPhone": "+1 437 423 1246"
+  }
+}

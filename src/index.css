@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/*
+ * Brand colours come from Settings → Branding (set at runtime by BrandingProvider as CSS variables).
+ * The values below are only neutral fallbacks used for a moment while the settings load.
+ * Lighter and darker shades are mixed from the three base colours.
+ */
+:root {
+  --brand-primary: #0f766e;
+  --brand-accent: #dc2626;
+  --brand-highlight: #f59e0b;
+}
+
+@theme inline {
+  --color-brand-50: color-mix(in oklab, var(--brand-primary) 8%, white);
+  --color-brand-100: color-mix(in oklab, var(--brand-primary) 18%, white);
+  --color-brand-200: color-mix(in oklab, var(--brand-primary) 38%, white);
+  --color-brand-300: color-mix(in oklab, var(--brand-primary) 60%, white);
+  --color-brand-400: color-mix(in oklab, var(--brand-primary) 82%, white);
+  --color-brand-500: var(--brand-primary);
+  --color-brand-600: color-mix(in oklab, var(--brand-primary) 88%, black);
+  --color-brand-700: color-mix(in oklab, var(--brand-primary) 72%, black);
+  --color-brand-800: color-mix(in oklab, var(--brand-primary) 56%, black);
+  --color-brand-900: color-mix(in oklab, var(--brand-primary) 42%, black);
+  --color-brand-950: color-mix(in oklab, var(--brand-primary) 28%, black);
+
+  --color-accent-50: color-mix(in oklab, var(--brand-accent) 8%, white);
+  --color-accent-100: color-mix(in oklab, var(--brand-accent) 18%, white);
+  --color-accent-200: color-mix(in oklab, var(--brand-accent) 38%, white);
+  --color-accent-500: var(--brand-accent);
+  --color-accent-600: color-mix(in oklab, var(--brand-accent) 88%, black);
+  --color-accent-700: color-mix(in oklab, var(--brand-accent) 72%, black);
+
+  --color-gold-100: color-mix(in oklab, var(--brand-highlight) 22%, white);
+  --color-gold-400: var(--brand-highlight);
+  --color-gold-500: color-mix(in oklab, var(--brand-highlight) 88%, black);
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+}
+
+/* Subtle dotted pattern on the brand panels */
+.brand-pattern {
+  background-color: var(--color-brand-700);
+  background-image:
+    radial-gradient(circle at 20% 20%, rgb(255 255 255 / 0.06) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 60%, rgb(255 255 255 / 0.05) 0 2px, transparent 3px),
+    linear-gradient(160deg, var(--color-brand-600) 0%, var(--color-brand-800) 100%);
+  background-size: 48px 48px, 64px 64px, 100% 100%;
+}

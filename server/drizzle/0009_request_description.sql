@@ -1,0 +1,1 @@
+ALTER TABLE "finance_requests" ADD COLUMN "description" varchar(200);

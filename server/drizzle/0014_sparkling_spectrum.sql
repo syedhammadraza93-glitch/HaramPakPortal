@@ -1,0 +1,1 @@
+ALTER TABLE "agencies" ADD COLUMN "portal_access" jsonb DEFAULT '{"catalogue":true,"bookings":true,"finance":true}'::jsonb NOT NULL;
