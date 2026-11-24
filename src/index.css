@@ -60,3 +60,21 @@
     linear-gradient(160deg, var(--color-brand-600) 0%, var(--color-brand-800) 100%);
   background-size: 48px 48px, 64px 64px, 100% 100%;
 }
+
+@keyframes agent-announcement-scroll {
+  to { transform: translateX(-50%); }
+}
+
+.agent-announcements-track {
+  animation: agent-announcement-scroll 28s linear infinite;
+}
+
+.agent-announcements-track[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-announcements-track { animation: none; width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .agent-announcements-track > span:first-child { display: inline; }
+  .agent-announcements-copy, .agent-announcements-motion { display: none; }
+}

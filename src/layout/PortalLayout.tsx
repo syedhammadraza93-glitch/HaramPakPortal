@@ -6,6 +6,7 @@ import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useBranding } from "../branding/BrandingProvider";
 import { BrandName, Logo } from "../components/Logo";
+import { AnnouncementBar } from "../components/AnnouncementBar";
 import { NotificationBell } from "../components/NotificationBell";
 import { Badge, StatusBadge, cx } from "../components/ui";
 import { useAppDispatch, useMe } from "../redux/hooks";
@@ -125,33 +126,36 @@ export function PortalLayout({ area }: { area: "agent" | "admin" }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
-          <button className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
-            <Menu className="size-5" />
-          </button>
-          <div className="min-w-0 flex-1">
-            {me?.agency ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate font-semibold text-slate-800">{me.agency.name}</span>
-                {me.agency.agentCode && <Badge tone="green">{me.agency.agentCode}</Badge>}
-                <StatusBadge status={me.agency.status} />
-              </div>
-            ) : (
-              <span className="font-semibold text-slate-800">Admin portal</span>
-            )}
-          </div>
-          <NotificationBell allPath={area === "agent" ? "/agent/notifications" : "/admin/notifications"} />
-          <div className="hidden text-right sm:block">
-            <p className="text-sm font-medium text-slate-800">{me?.fullName}</p>
-            <p className="text-xs text-slate-500">{me?.email}</p>
-          </div>
-          <button
-            onClick={onLogout}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:border-accent-200 hover:bg-accent-50 hover:text-accent-600"
-          >
-            <LogOut className="size-4" /> <span className="hidden sm:inline">Log out</span>
-          </button>
-        </header>
+        <div className="sticky top-0 z-20">
+          {area === "agent" && me && <AnnouncementBar key={me.id} />}
+          <header className="flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+            <button className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
+              <Menu className="size-5" />
+            </button>
+            <div className="min-w-0 flex-1">
+              {me?.agency ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate font-semibold text-slate-800">{me.agency.name}</span>
+                  {me.agency.agentCode && <Badge tone="green">{me.agency.agentCode}</Badge>}
+                  <StatusBadge status={me.agency.status} />
+                </div>
+              ) : (
+                <span className="font-semibold text-slate-800">Admin portal</span>
+              )}
+            </div>
+            <NotificationBell allPath={area === "agent" ? "/agent/notifications" : "/admin/notifications"} />
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-medium text-slate-800">{me?.fullName}</p>
+              <p className="text-xs text-slate-500">{me?.email}</p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:border-accent-200 hover:bg-accent-50 hover:text-accent-600"
+            >
+              <LogOut className="size-4" /> <span className="hidden sm:inline">Log out</span>
+            </button>
+          </header>
+        </div>
         <main className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
         </main>
