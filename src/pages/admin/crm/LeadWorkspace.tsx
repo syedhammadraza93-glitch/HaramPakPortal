@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { useMe } from "../../../redux/hooks";
 import { api } from "../../../utils/api";
 
+import { InitialNotes, NoteDetails } from "./InitialNotes";
+
 const root = "/admin/crm";
 const stages = ["new", "contacted", "qualified", "quoted", "follow_up", "booked", "lost"];
 const sources = ["phone", "whatsapp", "office_visit", "agency_referral", "social", "other"];
@@ -144,11 +146,16 @@ export function LeadWorkspace() {
 
   async function create(event: FormEvent<HTMLFormElement>) {
     const get = values(event);
+    const note = get("note");
+    if (note && note.length > 1500) {
+      setNotice({ text: "Shorten the initial notes to 1,500 characters including formatting.", error: true });
+      return;
+    }
     setBusy(true);
     try {
       const response = await api.post<{ id: string; reference: string }>(root + "/leads", {
         name: get("name"), phone: get("phone"), email: get("email"), source: get("source"),
-        service: get("service"), city: get("city"), note: get("note"),
+        service: get("service"), city: get("city"), note,
       });
       setAdding(false);
       setNotice({ text: "Enquiry " + response.data.reference + " created and assigned to you." });
@@ -175,7 +182,7 @@ export function LeadWorkspace() {
         <Field label="Service"><input className={input} name="service" required minLength={2} maxLength={120} /></Field>
         <Field label="City"><input className={input} name="city" maxLength={100} /></Field>
       </div>
-      <Field label="Initial notes"><textarea className={input} name="note" maxLength={1500} /></Field>
+      <InitialNotes />
       <button className={primary} disabled={busy}>Create enquiry</button>
     </form>}
     {view === "metrics" && <LeadMetrics />}
@@ -325,7 +332,7 @@ export function LeadDetail() {
           {!closed && <label className="flex gap-2 text-sm"><input type="checkbox" name="reached" />Reached the customer</label>}
           <button className={primary} disabled={busy}>Record activity</button>
         </form>
-        <ol className="max-h-96 space-y-2 overflow-auto">{events.map(event => <li key={event.id} className="border-t pt-2 text-sm"><strong>{pretty(event.kind)}</strong> · {date(event.createdAt)} · {event.actor ?? "System"}<p className="whitespace-pre-wrap break-words">{event.details}</p></li>)}</ol>
+        <ol className="max-h-96 space-y-2 overflow-auto">{events.map(event => <li key={event.id} className="border-t pt-2 text-sm"><strong>{pretty(event.kind)}</strong> · {date(event.createdAt)} · {event.actor ?? "System"}<NoteDetails value={event.details} /></li>)}</ol>
       </section>
       <section className={panel}><h2 className="font-semibold">Quotes</h2>
         <ul className="space-y-2">{quotes.map(quote => <li className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm" key={quote.id}>
