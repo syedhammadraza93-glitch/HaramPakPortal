@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMe } from "../../../redux/hooks";
-import { api } from "../../../utils/api";
+import { api, fieldErrors } from "../../../utils/api";
 
 import { InitialNotes, NoteDetails } from "./InitialNotes";
 
@@ -11,7 +11,7 @@ const sources = ["phone", "whatsapp", "office_visit", "agency_referral", "social
 const pretty = (value: string) => value.replace(/_/g, " ").replace(/^./, initial => initial.toUpperCase());
 const date = (value?: string | null) => value ? new Date(value).toLocaleString() : "—";
 const message = (err: unknown) => err instanceof Error ? err.message : "The request failed.";
-const input = "w-full min-w-0 rounded-md border bg-white p-2 text-sm";
+const input = "w-full min-w-0 rounded-md border bg-white p-2 text-sm aria-invalid:border-red-600";
 const button = "rounded-md border border-brand-700 px-3 py-2 text-sm font-semibold text-brand-800 disabled:opacity-50";
 const primary = "rounded-md bg-brand-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50";
 const panel = "space-y-3 rounded-lg border bg-white p-4";
@@ -35,8 +35,10 @@ type Metrics = {
   owners: { key: string | null; ownerId: string | null; stage: string; count: number }[];
 };
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="grid min-w-0 gap-1 text-sm font-medium">{label}{children}</label>;
+function Field({ label, children, error, errorId }: { label: string; children: ReactNode; error?: string; errorId?: string }) {
+  return <label className="grid min-w-0 gap-1 text-sm font-medium">{label}{children}
+    {error && <span id={errorId} className="text-xs text-red-700">{error}</span>}
+  </label>;
 }
 function Options({ items }: { items: string[] }) {
   return <>{items.map(item => <option key={item} value={item}>{pretty(item)}</option>)}</>;
@@ -131,6 +133,7 @@ export function LeadWorkspace() {
   const [result, setResult] = useState<{ items: Lead[]; total: number }>();
   const [view, setView] = useState<"list" | "metrics" | "rules">("list");
   const [revision, setRevision] = useState(0);
+  const [enquiryErrors, setEnquiryErrors] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error?: boolean }>();
@@ -144,30 +147,52 @@ export function LeadWorkspace() {
     return () => { current = false; };
   }, [stage, search, page, escalated, revision]);
 
+  function showEnquiryErrors(form: HTMLFormElement, errors: Record<string, string>) {
+    setEnquiryErrors(errors);
+    setNotice({ text: "Please correct the highlighted fields.", error: true });
+    requestAnimationFrame(() => form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+  }
+
+  function enquiryField(name: string) {
+    return { name, "aria-invalid": !!enquiryErrors[name], "aria-describedby": enquiryErrors[name] ? "enquiry-error-" + name : undefined };
+  }
+
   async function create(event: FormEvent<HTMLFormElement>) {
+    const form = event.currentTarget;
     const get = values(event);
+    const phone = get("phone");
     const note = get("note");
-    if (note && note.length > 1500) {
-      setNotice({ text: "Shorten the initial notes to 1,500 characters including formatting.", error: true });
-      return;
-    }
+    const phoneError = "Enter a valid phone number with 7 to 15 digits, such as +92 300 1234567.";
+    const errors: Record<string, string> = {};
+    if (!/^\+?[0-9() .-]+$/.test(phone) || !/^\+?\d{7,15}$/.test(phone.replace(/[^\d+]/g, ""))) errors.phone = phoneError;
+    if (note.length > 1500) errors.note = "Shorten the initial notes to 1,500 characters including formatting.";
+    if (Object.keys(errors).length) return showEnquiryErrors(form, errors);
+
+    setEnquiryErrors({});
+    setNotice(undefined);
     setBusy(true);
     try {
       const response = await api.post<{ id: string; reference: string }>(root + "/leads", {
-        name: get("name"), phone: get("phone"), email: get("email"), source: get("source"),
+        name: get("name"), phone, email: get("email"), source: get("source"),
         service: get("service"), city: get("city"), note,
       });
       setAdding(false);
       setNotice({ text: "Enquiry " + response.data.reference + " created and assigned to you." });
       refresh();
-    } catch (error) { setNotice({ text: message(error), error: true }); }
-    finally { setBusy(false); }
+    } catch (error) {
+      const fields = fieldErrors(error);
+      const visible = Object.fromEntries(Object.entries(fields).filter(([name]) =>
+        ["name", "phone", "email", "source", "service", "city", "note"].includes(name)));
+      if (visible.phone) visible.phone = phoneError;
+      if (Object.keys(visible).length) showEnquiryErrors(form, visible);
+      else setNotice({ text: Object.values(fields)[0] ?? message(error), error: true });
+    } finally { setBusy(false); }
   }
 
   return <main className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <header><h1 className="text-2xl font-bold">Leads</h1><p className="text-sm text-slate-600">{manager ? "Manage enquiries, assignments and follow-up across the sales team." : "Work your assigned enquiries and record customer activity."}</p></header>
-      <button type="button" className={primary} onClick={() => setAdding(value => !value)}>{adding ? "Close form" : "Add enquiry"}</button>
+      <button type="button" className={primary} onClick={() => { setEnquiryErrors({}); setNotice(undefined); setAdding(value => !value); }}>{adding ? "Close form" : "Add enquiry"}</button>
     </div>
     <div className="flex flex-wrap gap-2">{(["list", "metrics", ...(manager ? ["rules"] : [])] as ("list" | "metrics" | "rules")[]).map(item =>
       <button type="button" className={button} key={item} aria-pressed={view === item} onClick={() => setView(item)}>{({ list: "Lead queue", metrics: "Pipeline metrics", rules: "Escalation rules" })[item]}</button>)}</div>
@@ -175,14 +200,14 @@ export function LeadWorkspace() {
     {adding && <form className={panel} onSubmit={create}>
       <h2 className="font-semibold">Manual enquiry</h2>
       <div className="grid gap-3 md:grid-cols-3">
-        <Field label="Name"><input className={input} name="name" required minLength={2} maxLength={120} /></Field>
-        <Field label="Phone"><input className={input} name="phone" required type="tel" maxLength={40} /></Field>
-        <Field label="Email"><input className={input} name="email" type="email" maxLength={180} /></Field>
-        <Field label="Source"><select className={input} name="source"><Options items={sources} /></select></Field>
-        <Field label="Service"><input className={input} name="service" required minLength={2} maxLength={120} /></Field>
-        <Field label="City"><input className={input} name="city" maxLength={100} /></Field>
+        <Field label="Name" error={enquiryErrors.name} errorId="enquiry-error-name"><input className={input} {...enquiryField("name")} required minLength={2} maxLength={120} /></Field>
+        <Field label="Phone" error={enquiryErrors.phone} errorId="enquiry-error-phone"><input className={input} {...enquiryField("phone")} required type="tel" maxLength={40} /></Field>
+        <Field label="Email" error={enquiryErrors.email} errorId="enquiry-error-email"><input className={input} {...enquiryField("email")} type="email" maxLength={180} /></Field>
+        <Field label="Source" error={enquiryErrors.source} errorId="enquiry-error-source"><select className={input} {...enquiryField("source")}><Options items={sources} /></select></Field>
+        <Field label="Service" error={enquiryErrors.service} errorId="enquiry-error-service"><input className={input} {...enquiryField("service")} required minLength={2} maxLength={120} /></Field>
+        <Field label="City" error={enquiryErrors.city} errorId="enquiry-error-city"><input className={input} {...enquiryField("city")} maxLength={100} /></Field>
       </div>
-      <InitialNotes />
+      <InitialNotes error={enquiryErrors.note} />
       <button className={primary} disabled={busy}>Create enquiry</button>
     </form>}
     {view === "metrics" && <LeadMetrics />}

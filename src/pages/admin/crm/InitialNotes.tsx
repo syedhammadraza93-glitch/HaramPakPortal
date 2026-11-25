@@ -80,7 +80,7 @@ export function NoteDetails({ value }: { value: string }) {
   return <div className="whitespace-pre-wrap break-words [&_ul]:list-disc [&_ol]:list-decimal [&_li]:ms-5">{Array.from(template.content.childNodes, render)}</div>;
 }
 
-export function InitialNotes() {
+export function InitialNotes({ error }: { error?: string }) {
   const editor = useRef<HTMLDivElement>(null);
   const selection = useRef<Range | null>(null);
   const [value, setValue] = useState("");
@@ -120,7 +120,7 @@ export function InitialNotes() {
   return (
     <div className="space-y-1">
       <div id="initial-notes-label" className="text-sm font-medium">Initial notes</div>
-      <div className="rounded-md border bg-white">
+      <div className={error ? "rounded-md border border-red-600 bg-white" : "rounded-md border bg-white"}>
         <div role="group" aria-label="Note formatting" className="flex flex-wrap items-center gap-1 border-b bg-slate-50 p-1">
           <select aria-label="Text size" defaultValue="" onChange={event => {
             applyFormat("fontSize", event.currentTarget.value);
@@ -166,7 +166,7 @@ export function InitialNotes() {
           {linkError && <p role="alert" className="w-full text-xs text-red-700">Select note text and enter a valid web address beginning with https:// or http://.</p>}
         </div>}
         <div ref={editor} contentEditable role="textbox" aria-multiline="true" aria-labelledby="initial-notes-label"
-          aria-describedby="initial-notes-limit" aria-invalid={value.length > 1500}
+          aria-describedby={error ? "initial-notes-limit enquiry-error-note" : "initial-notes-limit"} aria-invalid={!!error || value.length > 1500}
           className="min-h-24 whitespace-pre-wrap break-words p-2 text-sm [&_a]:underline [&_ul]:list-disc [&_ol]:list-decimal [&_li]:ms-5"
           onInput={sync} onSelect={rememberSelection} onBlur={rememberSelection}
           onPaste={event => {
@@ -176,6 +176,7 @@ export function InitialNotes() {
           }}
           onDrop={event => event.preventDefault()} />
       </div>
+      {error && <p id="enquiry-error-note" className="text-xs text-red-700">{error}</p>}
       <input type="hidden" name="note" value={value} />
       <p id="initial-notes-limit" className="text-xs text-slate-600">Up to 1,500 characters, including formatting.</p>
     </div>
