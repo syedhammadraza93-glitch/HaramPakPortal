@@ -6,7 +6,6 @@ import { crmSettings, leadEvents, leadQuotes, leads, leadSources, leadStages, pe
 import { currentUser, jwtGuard, requirePermission } from "../middleware/auth.middleware";
 import { websiteEnquiryLimiter } from "../middleware/rateLimit";
 import { closedLeadStages, escalateOverdueLeads, getCrmSettings } from "../services/crmEscalations.service";
-import { flightSearchInput, flightSearchResult, flightSearchSettings, startFlightSearch } from "../services/flightSearch.service";
 import { renderLeadQuotePdf } from "../services/leadQuotePdf.service";
 import { asyncHandler as h, badRequest, conflict, forbidden, notFound, ok, parse } from "../utils/http";
 
@@ -139,26 +138,6 @@ async function scopedLead(req: Request) {
   if (!lead) throw notFound("Lead not found");
   return lead;
 }
-
-crmRoutes.get("/leads/:id/flights/settings", h(async (req, res) => {
-  await scopedLead(req);
-  ok(res, flightSearchSettings());
-}));
-
-crmRoutes.post("/leads/:id/flights", h(async (req, res) => {
-  const lead = await scopedLead(req);
-  const input = parse(flightSearchInput, req.body);
-  const id = startFlightSearch(currentUser(req).id, lead.id, input);
-  if (!id) throw conflict("Flight search is unavailable or a search is already running.");
-  ok(res, { id }, undefined, 202);
-}));
-
-crmRoutes.get("/leads/:id/flights/:jobId", h(async (req, res) => {
-  const lead = await scopedLead(req);
-  const result = flightSearchResult(currentUser(req).id, lead.id, parse(uid, req.params.jobId));
-  if (!result) throw notFound("Flight search expired. Start a new search.");
-  ok(res, result);
-}));
 
 crmRoutes.get("/leads/:id", h(async (req, res) => {
   const lead = await scopedLead(req);
