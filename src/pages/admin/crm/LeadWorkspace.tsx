@@ -1,9 +1,11 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, useRef, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMe } from "../../../redux/hooks";
 import { api, fieldErrors } from "../../../utils/api";
 
 import { InitialNotes, NoteDetails } from "./InitialNotes";
+
+import FlightSearch, { type FlightQuote } from "./FlightSearch";
 
 const root = "/admin/crm";
 const stages = ["new", "contacted", "qualified", "quoted", "follow_up", "booked", "lost"];
@@ -242,7 +244,8 @@ export function LeadDetail() {
   const [owners, setOwners] = useState<Owners>([]);
   const [stage, setStage] = useState("new");
   const [editingContact, setEditingContact] = useState(false);
-  const [lines, setLines] = useState([{ key: 0 }]);
+  const [lines, setLines] = useState<{ key: number; fare?: FlightQuote }[]>([{ key: 0 }]);
+  const quoteForm = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error?: boolean }>();
   useEffect(() => {
@@ -294,6 +297,27 @@ export function LeadDetail() {
     const get = values(event);
     if (await run(() => api.post(path + "/events", { kind: get("kind"), details: get("details"), reachedCustomer: !!get("reached") }), "Activity recorded.")) form.reset();
   }
+  function addFlight(fare: FlightQuote) {
+    const form = quoteForm.current;
+    if (!form || !fare.label || !Number.isFinite(fare.total) || fare.total <= 0 || fare.total > 10000000 || lines.length >= 30) {
+      setNotice({ text: "Check the fare details and available quote lines.", error: true });
+      return false;
+    }
+    const data = new FormData(form);
+    const currency = form.elements.namedItem("currency");
+    if (currency instanceof HTMLSelectElement && currency.value !== fare.currency) {
+      if (lines.some(({ key }) => data.get("item-" + key) || data.get("price-" + key))) {
+        setNotice({ text: "The fare currency must match the existing quote lines.", error: true });
+        return false;
+      }
+      currency.value = fare.currency;
+    }
+    setLines(prev => [...prev.filter(({ key }) => data.get("item-" + key) || data.get("price-" + key)),
+      { key: Math.max(...prev.map(row => row.key)) + 1, fare }]);
+    setNotice(undefined);
+    return true;
+  }
+
   async function createQuote(event: FormEvent<HTMLFormElement>) {
     const form = event.currentTarget;
     const get = values(event);
@@ -359,19 +383,20 @@ export function LeadDetail() {
         </form>
         <ol className="max-h-96 space-y-2 overflow-auto">{events.map(event => <li key={event.id} className="border-t pt-2 text-sm"><strong>{pretty(event.kind)}</strong> · {date(event.createdAt)} · {event.actor ?? "System"}<NoteDetails value={event.details} /></li>)}</ol>
       </section>
+      {!closed && <FlightSearch key={path} path={path} departure={lead.travelDate} adults={lead.travellers} onAdd={addFlight} />}
       <section className={panel}><h2 className="font-semibold">Quotes</h2>
         <ul className="space-y-2">{quotes.map(quote => <li className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm" key={quote.id}>
           <span>Revision {quote.revision} · {quote.currency} · Valid through {quote.validUntil} · {quote.sentAt ? "Sent " + date(quote.sentAt) : "Ready to send"}</span>
           <div className="flex gap-2"><button className={button} onClick={() => void download(quote)}>Download PDF</button>
             {!closed && !quote.sentAt && <button className={button} disabled={busy} onClick={() => void run(() => api.post(path + "/quotes/" + quote.id + "/sent"), "Quote marked sent.")}>Mark sent</button>}</div>
         </li>)}</ul>
-        {!closed && <form className="space-y-3" onSubmit={createQuote}>
+        {!closed && <form className="space-y-3" ref={quoteForm} onSubmit={createQuote}>
           <div className="grid grid-cols-2 gap-2"><Field label="Currency"><select className={input} name="currency">{["PKR", "SAR", "USD", "CAD", "GBP", "EUR"].map(code => <option key={code}>{code}</option>)}</select></Field>
             <Field label="Valid through"><input className={input} type="date" name="valid" min={new Date().toISOString().slice(0, 10)} required /></Field></div>
-          {lines.map(({ key }, index) => <div key={key} className="grid grid-cols-2 gap-2 border-t pt-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
-            <Field label={"Item " + (index + 1)}><input className={input} name={"item-" + key} required maxLength={180} /></Field>
+          {lines.map(({ key, fare }, index) => <div key={key} className="grid grid-cols-2 gap-2 border-t pt-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
+            <Field label={"Item " + (index + 1)}><input className={input} name={"item-" + key} defaultValue={fare?.label} required maxLength={180} /></Field>
             <Field label="Quantity"><input className={input} type="number" min="1" max="1000" name={"quantity-" + key} defaultValue="1" required /></Field>
-            <Field label="Unit price"><input className={input} type="number" min="0" max="10000000" step="0.01" name={"price-" + key} required /></Field>
+            <Field label="Unit price"><input className={input} type="number" min="0" max="10000000" step="0.01" name={"price-" + key} defaultValue={fare?.total} required /></Field>
             {lines.length > 1 && <button type="button" className={button} onClick={() => setLines(prev => prev.filter(row => row.key !== key))}>Remove item {index + 1}</button>}
           </div>)}
           <button type="button" className={button} disabled={lines.length >= 30} onClick={() => setLines(prev => [...prev, { key: Math.max(...prev.map(row => row.key)) + 1 }])}>Add line item</button>
