@@ -1,7 +1,7 @@
 import { hotelQuoteLine, quoteCurrencies, type DraftLine, type StayPricing } from "../../../utils/hotelQuote";
 import { useState } from "react";
 import { api } from "../../../utils/api";
-import { matchesHotel, normalizeHotelText, suggestHotelStays, type HotelMatchFields, type HotelStay } from "../../../utils/hotelSearch";
+import { matchesHotel, normalizeHotelText, requestsSimilarHotel, suggestHotelStays, type HotelMatchFields, type HotelStay } from "../../../utils/hotelSearch";
 
 type Hotel = HotelMatchFields & {
   id: string; name: string; city: string; address?: string | null; distanceReference: string | null;
@@ -37,15 +37,17 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
   }
 
   async function search() {
-    const suggestions = suggestHotelStays(enquiry);
-    setStays(suggestions.length ? suggestions : [blank("Makkah"), blank("Madinah")]);
     setPricing({});
     setCatalogue(undefined);
     setBusy(true);
     setNotice("");
     setSelected({});
     try {
-      setCatalogue(await api.get<Hotel[]>(path + "/hotel-catalogue"));
+      const hotels = await api.get<Hotel[]>(path + "/hotel-catalogue");
+      const suggestions = suggestHotelStays(enquiry, hotels);
+      const fallback = requestsSimilarHotel(enquiry);
+      setStays(suggestions.length ? suggestions : [blank("Makkah"), blank("Madinah")].map(stay => ({ ...stay, similar: fallback })));
+      setCatalogue(hotels);
     } catch (error) {
       setCatalogue(undefined);
       setNotice(error instanceof Error ? error.message : "Hotel catalogue could not be loaded.");
@@ -111,8 +113,13 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
     )}
     {catalogue && stays.map((stay, index) => {
       const available = catalogue?.filter(hotel => cityAliases[stay.city].includes(normalizeHotelText(hotel.city)));
-      const exact = available?.filter(hotel => matchesHotel(hotel, stay));
-      const alternatives = exact?.length === 0 ? available?.filter(hotel => matchesHotel(hotel, { ...stay, min: "", max: "" }))
+      const requested = available?.find(hotel => hotel.id === stay.requestedHotel);
+      const needsRating = stay.similar && !stay.stars.length;
+      const eligible = (requested && !stay.similar) || needsRating ? (requested ? [requested] : []) : available;
+      const exact = eligible?.filter(hotel => matchesHotel(hotel, stay))
+        .sort((a, b) => Number(b.id === stay.requestedHotel) - Number(a.id === stay.requestedHotel)
+          || (a.distanceToHaramM ?? Infinity) - (b.distanceToHaramM ?? Infinity));
+      const alternatives = exact?.length === 0 ? eligible?.filter(hotel => matchesHotel(hotel, { ...stay, min: "", max: "" }))
         .filter(hotel => hotel.distanceToHaramM !== null && !!(stay.min || stay.max))
         .sort((a, b) => distanceDifference(a, stay) - distanceDifference(b, stay)).slice(0, 3) : [];
       return <fieldset key={index} className="space-y-2 rounded-md border p-3">
@@ -120,7 +127,7 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
         <details className="text-sm">
           <summary className="cursor-pointer py-1 text-brand-800">Refine filters</summary>
           <div className="grid gap-2 py-2 sm:grid-cols-2 xl:grid-cols-4">
-            <label className="text-sm">City<select className={field} value={stay.city} onChange={e => update(index, { city: e.target.value === "Madinah" ? "Madinah" : "Makkah", location: "" })}>
+            <label className="text-sm">City<select className={field} value={stay.city} onChange={e => update(index, { city: e.target.value === "Madinah" ? "Madinah" : "Makkah", location: "", requestedHotel: undefined, similar: false })}>
               <option>Makkah</option><option>Madinah</option>
             </select></label>
             <label className="text-sm">Area or road<input className={field} value={stay.location} onChange={e => update(index, { location: e.target.value })} /></label>
@@ -139,11 +146,15 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
             }}>Remove stay {index + 1}</button>
           </div>
         </details>
+        {needsRating && <p className="text-sm text-slate-600">
+          {requested ? "This hotel’s star rating is unavailable." : "The requested hotel could not be identified in the catalogue."} Choose a star rating under Refine filters to see similar hotels.
+        </p>}
         {exact && <p className="text-sm" role="status">{exact.length ? exact.length + " catalogue matches" : alternatives?.length ? "No exact matches. Nearby alternatives:" : "No matches. Review the city, area, stars, and distance."}</p>}
         <div className="grid gap-2 sm:grid-cols-2">{(exact?.length ? exact : alternatives)?.map(hotel => {
           const selectedHotel = selected[index]?.id === hotel.id;
           return <div key={hotel.id} className={"space-y-2 rounded-lg border p-3 text-sm " + (selectedHotel ? "border-brand-700 bg-brand-50" : "bg-white")}>
             <h3 className="text-base font-semibold">{hotel.name}</h3>
+            {hotel.id === stay.requestedHotel && <p className="text-brand-800">Requested hotel</p>}
             <p>{[hotel.area, hotel.road, hotel.starRating && hotel.starRating + "★"].filter(Boolean).join(" · ")}</p>
             {hotel.address && <p className="text-slate-600">{hotel.address}</p>}
             <p>{hotel.distanceToHaramM === null ? "Walking distance unknown" : hotel.distanceToHaramM + " m to " + (hotel.distanceReference ?? "unspecified entrance")}
