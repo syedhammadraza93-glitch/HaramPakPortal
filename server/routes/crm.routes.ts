@@ -142,7 +142,7 @@ async function scopedLead(req: Request) {
 crmRoutes.get("/leads/:id/hotel-catalogue", h(async (req, res) => {
   await scopedLead(req);
   const rows = await db.select({
-    id: hotels.id, name: hotels.name, city: destinations.city, area: hotels.area, road: hotels.road,
+    id: hotels.id, name: hotels.name, city: destinations.city, area: hotels.area, road: hotels.road, address: hotels.address,
     locationAliases: hotels.locationAliases, starRating: hotels.starRating,
     distanceToHaramM: hotels.distanceToHaramM, distanceReference: hotels.distanceReference,
     distanceVerifiedOn: hotels.distanceVerifiedOn, shuttleAvailable: hotels.shuttleAvailable,
