@@ -323,6 +323,7 @@ export function LeadDetail() {
     const start = Math.max(...lines.map(line => line.key)) + 1;
     setLines([...existing, ...items.map((draft, i) => ({ key: start + i, draft }))]);
     setNotice(undefined);
+    form.scrollIntoView({ block: "start" });
     return true;
   }
 
