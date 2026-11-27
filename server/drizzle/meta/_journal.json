@@ -113,6 +113,13 @@
       "when": 1795757507265,
       "tag": "0015_chunky_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795757747311,
+      "tag": "0016_hotel_catalogue_test_data",
+      "breakpoints": true
     }
   ]
 }
