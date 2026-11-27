@@ -1,12 +1,14 @@
 import { hotelQuoteLine, quoteCurrencies, type DraftLine, type StayPricing } from "../../../utils/hotelQuote";
 import { useState } from "react";
-import { api } from "../../../utils/api";
+import { api, errorMessage } from "../../../utils/api";
 import { matchesHotel, normalizeHotelText, requestsSimilarHotel, suggestHotelStays, type HotelMatchFields, type HotelStay } from "../../../utils/hotelSearch";
 
 type Hotel = HotelMatchFields & {
   id: string; name: string; city: string; address?: string | null; distanceReference: string | null;
   distanceVerifiedOn: string | null; shuttleAvailable: boolean | null; indicativeNightlySar: number | null;
 };
+
+type OnlineHotel = { id: string; name: string; address: string; city: HotelStay["city"]; starRating: number | null; sourceUrl: string };
 
 const field = "w-full rounded-md border bg-white p-2 text-sm";
 const button = "rounded-md border border-brand-700 px-3 py-2 text-sm font-semibold text-brand-800 disabled:opacity-50";
@@ -25,6 +27,7 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
   const [currency, setCurrency] = useState("SAR");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [lookup, setLookup] = useState<{ index: number; name: string; results?: OnlineHotel[]; error?: string }>();
 
   function update(index: number, patch: Partial<HotelStay>) {
     setStays(current => current.map((stay, i) => i === index ? { ...stay, ...patch } : stay));
@@ -38,6 +41,7 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
 
   async function search() {
     setPricing({});
+    setLookup(undefined);
     setCatalogue(undefined);
     setBusy(true);
     setNotice("");
@@ -56,6 +60,46 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
 
   function setPrice(index: number, patch: Partial<StayPricing>) {
     setPricing(current => ({ ...current, [index]: { ...current[index], ...patch } }));
+  }
+
+  function selectHotel(index: number, stay: HotelStay, hotel: Hotel) {
+    setSelected({ ...selected, [index]: hotel });
+    const checkIn = pricing[index]?.checkIn || stay.checkIn || (!stay.ramadanDay ? pricing[index - 1]?.checkOut || (index === 0 ? travelDate?.slice(0, 10) ?? "" : "") : "");
+    const checkoutDate = new Date(checkIn + "T00:00:00Z");
+    checkoutDate.setUTCDate(checkoutDate.getUTCDate() + (stay.nights ?? 0));
+    const inferredCheckout = stay.nights && Number.isFinite(checkoutDate.getTime()) ? checkoutDate.toISOString().slice(0, 10) : "";
+    setPrice(index, { checkIn, checkOut: pricing[index]?.checkOut || stay.checkOut || inferredCheckout,
+      guests: pricing[index]?.guests || String(stay.guests ?? travellers ?? ""),
+      rooms: pricing[index]?.rooms || String(stay.rooms ?? 1), capacity: "",
+      rate: currency === "SAR" && hotel.indicativeNightlySar != null ? String(hotel.indicativeNightlySar) : "" });
+  }
+
+  async function findHotel(index: number, city: HotelStay["city"], name: string) {
+    setBusy(true);
+    try {
+      const { data: results } = await api.post<OnlineHotel[]>(path + "/hotel-lookup", { name, city });
+      setLookup({ index, name, results });
+    } catch (error) {
+      setLookup({ index, name, error: errorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveOnlineHotel(index: number, stay: HotelStay, online: OnlineHotel) {
+    setBusy(true);
+    try {
+      const { data: result } = await api.post<{ id: string; added: boolean }>(path + "/hotel-lookup/save", { id: online.id });
+      const hotel = fromOnlineHotel(online);
+      setCatalogue(current => current?.some(item => item.id === result.id) ? current : [...(current ?? []), { ...hotel, id: result.id }]);
+      selectHotel(index, stay, { ...hotel, id: result.id });
+      setLookup(undefined);
+      setNotice(result.added ? "Hotel saved to the catalogue and selected for the quote." : "Existing catalogue hotel selected for the quote.");
+    } catch (error) {
+      setLookup(current => current && { ...current, error: errorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
   }
 
   function priceShortlist() {
@@ -138,10 +182,38 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
           similar: true, stars: stay.stars.length || !requested?.starRating ? stay.stars : [requested.starRating],
         })}>Show similar hotels</button>}
         {stay.unresolvedHotel && !stay.similar && <p className="text-sm text-slate-600">The requested hotel could not be identified in the catalogue.</p>}
+        {!requested && lookup?.index !== index && <button type="button" className={button} disabled={busy}
+          onClick={() => setLookup({ index, name: "" })}>Find hotel online</button>}
+        {lookup?.index === index && <form className="space-y-3 rounded-md border p-3" onSubmit={event => {
+          event.preventDefault();
+          if (!busy && lookup.name.trim().length >= 3) void findHotel(index, stay.city, lookup.name.trim());
+        }}>
+          <label className="grid gap-1 text-sm">Hotel name in {stay.city}
+            <input className={field} value={lookup.name} maxLength={120} required minLength={3} disabled={busy}
+              onChange={event => setLookup({ index, name: event.target.value })} />
+          </label>
+          <button type="submit" className={button} disabled={busy || lookup.name.trim().length < 3}>Search online</button>
+          {lookup.error && <p role="alert" className="text-sm text-red-700">{lookup.error}</p>}
+          {lookup.results?.length === 0 && <p role="status" className="text-sm">No online matches. Try the property’s full name or another spelling.</p>}
+          {lookup.results?.map(online => <div className="space-y-2 border-t pt-2 text-sm" key={online.id}>
+            <h3 className="font-semibold">{online.name}</h3>
+            <p>{online.address}</p>
+            <p>{online.starRating ? "Listed on map as " + online.starRating + "★ · classification unverified" : "Star classification unverified"} · Mosque walking distance unverified · Availability on request</p>
+            <p><a className="underline" href={online.sourceUrl} target="_blank" rel="noreferrer">View on OpenStreetMap</a> · <a className="underline" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a></p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={button} disabled={busy} onClick={() => {
+                selectHotel(index, stay, fromOnlineHotel(online));
+                setLookup(undefined);
+                setNotice("Hotel selected for the current quote.");
+              }}>Use in current quote</button>
+              <button type="button" className={button} disabled={busy} onClick={() => void saveOnlineHotel(index, stay, online)}>Save to catalogue and use</button>
+            </div>
+          </div>)}
+        </form>}
         <details className="text-sm">
           <summary className="cursor-pointer py-1 text-brand-800">Refine filters</summary>
           <div className="grid gap-2 py-2 sm:grid-cols-2 xl:grid-cols-4">
-            <label className="text-sm">City<select className={field} value={stay.city} onChange={e => update(index, { city: e.target.value === "Madinah" ? "Madinah" : "Makkah", location: "", requestedHotel: undefined, candidates: undefined, unresolvedHotel: false, similar: false })}>
+            <label className="text-sm">City<select className={field} value={stay.city} onChange={e => { setLookup(undefined); update(index, { city: e.target.value === "Madinah" ? "Madinah" : "Makkah", location: "", requestedHotel: undefined, candidates: undefined, unresolvedHotel: false, similar: false }); }}>
               <option>Makkah</option><option>Madinah</option>
             </select></label>
             <label className="text-sm">Area or road<input className={field} value={stay.location} onChange={e => update(index, { location: e.target.value })} /></label>
@@ -159,6 +231,7 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
               setStays(stays.filter((_, i) => i !== index));
               setSelected({});
               setPricing({});
+              setLookup(undefined);
             }}>Remove stay {index + 1}</button>
           </div>
         </details>
@@ -193,15 +266,7 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
                   update(index, {});
                   return;
                 }
-                setSelected({ ...selected, [index]: hotel });
-                const checkIn = pricing[index]?.checkIn || stay.checkIn || (!stay.ramadanDay ? pricing[index - 1]?.checkOut || (index === 0 ? travelDate?.slice(0, 10) ?? "" : "") : "");
-                const checkoutDate = new Date(checkIn + "T00:00:00Z");
-                checkoutDate.setUTCDate(checkoutDate.getUTCDate() + (stay.nights ?? 0));
-                const inferredCheckout = stay.nights && Number.isFinite(checkoutDate.getTime()) ? checkoutDate.toISOString().slice(0, 10) : "";
-                setPrice(index, { checkIn, checkOut: pricing[index]?.checkOut || stay.checkOut || inferredCheckout,
-                  guests: pricing[index]?.guests || String(stay.guests ?? travellers ?? ""),
-                  rooms: pricing[index]?.rooms || String(stay.rooms ?? 1), capacity: "",
-                  rate: currency === "SAR" && hotel.indicativeNightlySar != null ? String(hotel.indicativeNightlySar) : "" });
+                selectHotel(index, stay, hotel);
               }}>{candidates.length ? "Use this hotel" : selectedHotel ? "Selected" : "Select hotel"}</button>
           </div>;
         })}</div>
@@ -242,4 +307,10 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
 function distanceDifference(hotel: Hotel, stay: HotelStay) {
   const distance = hotel.distanceToHaramM ?? 0;
   return Math.max(0, stay.min ? Number(stay.min) - distance : 0, stay.max ? distance - Number(stay.max) : 0);
+}
+
+function fromOnlineHotel(online: OnlineHotel): Hotel {
+  return { id: online.id, name: online.name, city: online.city, address: online.address,
+    starRating: null, area: null, road: null, locationAliases: null, distanceToHaramM: null,
+    distanceReference: null, distanceVerifiedOn: null, shuttleAvailable: null, indicativeNightlySar: null };
 }
