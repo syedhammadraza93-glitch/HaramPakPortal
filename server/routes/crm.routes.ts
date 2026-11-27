@@ -1,8 +1,8 @@
-import { and, count, desc, eq, ilike, isNotNull, max, or, sql } from "drizzle-orm";
+import { and, asc, inArray, count, desc, eq, ilike, isNotNull, max, or, sql } from "drizzle-orm";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { db } from "../database/connection";
-import { crmSettings, leadEvents, leadQuotes, leads, leadSources, leadStages, permissions, rolePermissions, userRoles, users } from "../database/schema";
+import { destinations, hotels, crmSettings, leadEvents, leadQuotes, leads, leadSources, leadStages, permissions, rolePermissions, userRoles, users } from "../database/schema";
 import { currentUser, jwtGuard, requirePermission } from "../middleware/auth.middleware";
 import { websiteEnquiryLimiter } from "../middleware/rateLimit";
 import { closedLeadStages, escalateOverdueLeads, getCrmSettings } from "../services/crmEscalations.service";
@@ -138,6 +138,21 @@ async function scopedLead(req: Request) {
   if (!lead) throw notFound("Lead not found");
   return lead;
 }
+
+crmRoutes.get("/leads/:id/hotel-catalogue", h(async (req, res) => {
+  await scopedLead(req);
+  const rows = await db.select({
+    id: hotels.id, name: hotels.name, city: destinations.city, area: hotels.area, road: hotels.road,
+    locationAliases: hotels.locationAliases, starRating: hotels.starRating,
+    distanceToHaramM: hotels.distanceToHaramM, distanceReference: hotels.distanceReference,
+    distanceVerifiedOn: hotels.distanceVerifiedOn, shuttleAvailable: hotels.shuttleAvailable,
+    isActive: hotels.isActive,
+  }).from(hotels).innerJoin(destinations, eq(destinations.id, hotels.destinationId))
+    .where(and(inArray(sql`lower(${destinations.city})`, ["makkah", "mecca", "madinah", "madina", "medina"]),
+      or(and(eq(hotels.isActive, true), eq(destinations.isActive, true)), ilike(hotels.name, "TEST · %"))))
+    .orderBy(asc(hotels.name));
+  ok(res, rows);
+}));
 
 crmRoutes.get("/leads/:id", h(async (req, res) => {
   const lead = await scopedLead(req);

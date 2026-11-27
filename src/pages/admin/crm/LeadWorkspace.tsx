@@ -5,6 +5,8 @@ import { api, fieldErrors } from "../../../utils/api";
 
 import { InitialNotes, NoteDetails } from "./InitialNotes";
 
+import HotelEnquiry from "./HotelEnquiry";
+
 const root = "/admin/crm";
 const stages = ["new", "contacted", "qualified", "quoted", "follow_up", "booked", "lost"];
 const sources = ["phone", "whatsapp", "office_visit", "agency_referral", "social", "other"];
@@ -359,6 +361,7 @@ export function LeadDetail() {
         </form>
         <ol className="max-h-96 space-y-2 overflow-auto">{events.map(event => <li key={event.id} className="border-t pt-2 text-sm"><strong>{pretty(event.kind)}</strong> · {date(event.createdAt)} · {event.actor ?? "System"}<NoteDetails value={event.details} /></li>)}</ol>
       </section>
+      {!closed && <HotelEnquiry key={path} path={path} onSave={summary => run(() => api.post(path + "/events", { kind: "note", details: summary }), "Hotel shortlist saved.")} />}
       <section className={panel}><h2 className="font-semibold">Quotes</h2>
         <ul className="space-y-2">{quotes.map(quote => <li className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm" key={quote.id}>
           <span>Revision {quote.revision} · {quote.currency} · Valid through {quote.validUntil} · {quote.sentAt ? "Sent " + date(quote.sentAt) : "Ready to send"}</span>

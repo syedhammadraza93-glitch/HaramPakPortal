@@ -1,0 +1,141 @@
+import { useState } from "react";
+import { api } from "../../../utils/api";
+import { matchesHotel, normalizeHotelText, suggestHotelStays, type HotelMatchFields, type HotelStay } from "../../../utils/hotelSearch";
+
+type Hotel = HotelMatchFields & {
+  id: string; name: string; city: string; distanceReference: string | null;
+  distanceVerifiedOn: string | null; shuttleAvailable: boolean | null; isActive: boolean;
+};
+
+const field = "w-full rounded-md border bg-white p-2 text-sm";
+const button = "rounded-md border border-brand-700 px-3 py-2 text-sm font-semibold text-brand-800 disabled:opacity-50";
+const blank = (city: HotelStay["city"] = "Makkah"): HotelStay => ({ city, location: "", stars: [], min: "", max: "" });
+const cityAliases = { Makkah: ["makkah", "mecca"], Madinah: ["madinah", "madina", "medina"] };
+
+export default function HotelEnquiry({ path, onSave }: {
+  path: string; onSave: (summary: string) => Promise<boolean>;
+}) {
+  const [enquiry, setEnquiry] = useState("");
+  const [stays, setStays] = useState<HotelStay[]>([]);
+  const [catalogue, setCatalogue] = useState<Hotel[]>();
+  const [selected, setSelected] = useState<Record<number, Hotel>>({});
+  const [includeTests, setIncludeTests] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  function update(index: number, patch: Partial<HotelStay>) {
+    setStays(current => current.map((stay, i) => i === index ? { ...stay, ...patch } : stay));
+    setSelected(current => {
+      const next = { ...current };
+      delete next[index];
+      return next;
+    });
+    setNotice("");
+  }
+
+  async function search() {
+    setBusy(true);
+    setNotice("");
+    setSelected({});
+    try {
+      setCatalogue(await api.get<Hotel[]>(path + "/hotel-catalogue"));
+    } catch (error) {
+      setCatalogue(undefined);
+      setNotice(error instanceof Error ? error.message : "Hotel catalogue could not be loaded.");
+    } finally { setBusy(false); }
+  }
+
+  async function save() {
+    const summary = stays.flatMap((stay, index) => {
+      const hotel = selected[index];
+      if (!hotel || !hotel.isActive) return [];
+      const distance = hotel.distanceToHaramM === null ? "distance unknown"
+        : hotel.distanceToHaramM + " m" + (hotel.distanceReference ? " to " + hotel.distanceReference : "") + (hotel.distanceVerifiedOn ? "" : " (unverified)");
+      return [`Stay ${index + 1} · ${stay.city}: ${hotel.name} · ${distance}`];
+    }).join("\n");
+    if (!summary) return;
+    const note = "Hotel shortlist — confirm room occupancy, dates, availability and rates before quoting.\n" + summary;
+    if (note.length > 1500) {
+      setNotice("This shortlist is too long for one activity note. Save fewer stays at a time.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (await onSave(note)) {
+        setNotice("Hotel shortlist saved to the lead activity timeline.");
+      }
+    } finally { setBusy(false); }
+  }
+
+  return <section className="space-y-4 rounded-lg border bg-white p-4">
+    <h2 className="font-semibold">Find hotels from enquiry</h2>
+    <label className="grid gap-1 text-sm">Paste the customer’s hotel requirements
+      <textarea value={enquiry} onChange={event => setEnquiry(event.target.value)} maxLength={6000}
+        placeholder="Makkah on Ibrahim Khalil Road, Madinah in Markaziyah, 300–400 m, 3 or 4 stars"
+        className={field + " min-h-24"} />
+    </label>
+    <div className="flex flex-wrap gap-2">
+      <button type="button" className={button} disabled={busy || !enquiry.trim()} onClick={() => {
+        const suggestions = suggestHotelStays(enquiry);
+        setStays(suggestions.length ? suggestions : [blank()]);
+        setCatalogue(undefined);
+        setSelected({});
+        setNotice(suggestions.length ? "Review the suggested filters, then search the catalogue." : "I couldn’t identify a city. Choose the city and filters below.");
+      }}>Suggest filters</button>
+      <button type="button" className={button} disabled={busy || stays.length >= 8} onClick={() => setStays([...stays, blank(stays.at(-1)?.city === "Makkah" ? "Madinah" : "Makkah")])}>Add stay</button>
+      {!!stays.length && <button type="button" className={button} disabled={busy || stays.some(({ min, max }) => (min && Number(min) < 0) || (max && Number(max) < 0) || (min && max && Number(min) > Number(max)))} onClick={() => void search()}>{busy && !catalogue ? "Loading…" : "Search catalogue"}</button>}
+    </div>
+    {stays.map((stay, index) => {
+      const available = catalogue?.filter(hotel => (hotel.isActive || includeTests) && cityAliases[stay.city].includes(normalizeHotelText(hotel.city)));
+      const exact = available?.filter(hotel => matchesHotel(hotel, stay));
+      const alternatives = exact?.length === 0 ? available?.filter(hotel => matchesHotel(hotel, { ...stay, min: "", max: "" }))
+        .filter(hotel => hotel.distanceToHaramM !== null && !!(stay.min || stay.max))
+        .sort((a, b) => distanceDifference(a, stay) - distanceDifference(b, stay)).slice(0, 3) : [];
+      return <fieldset key={index} className="space-y-2 rounded-md border p-3">
+        <legend className="px-1 text-sm font-semibold">Stay {index + 1}</legend>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="text-sm">City<select className={field} value={stay.city} onChange={e => update(index, { city: e.target.value === "Madinah" ? "Madinah" : "Makkah", location: "" })}>
+            <option>Makkah</option><option>Madinah</option>
+          </select></label>
+          <label className="text-sm">Area or road<input className={field} value={stay.location} onChange={e => update(index, { location: e.target.value })} /></label>
+          <label className="text-sm">Minimum walk (m)<input className={field} type="number" min={0} value={stay.min} onChange={e => update(index, { min: e.target.value })} /></label>
+          <label className="text-sm">Maximum walk (m)<input className={field} type="number" min={0} value={stay.max} onChange={e => update(index, { max: e.target.value })} /></label>
+        </div>
+        {stay.min && stay.max && Number(stay.min) > Number(stay.max) && <p role="alert" className="text-sm text-red-700">Minimum walking distance must be at most the maximum.</p>}
+        <div aria-label="Star ratings" role="group" className="flex flex-wrap gap-3">
+          {[1, 2, 3, 4, 5, 6, 7].map(star => <label key={star} className="flex items-center gap-1 text-sm">
+            <input type="checkbox" checked={stay.stars.includes(star)} onChange={e => update(index, {
+              stars: e.target.checked ? [...stay.stars, star] : stay.stars.filter(value => value !== star),
+            })} />{star}★</label>)}
+          <button type="button" className="ml-auto text-sm underline" disabled={busy} onClick={() => {
+            setStays(stays.filter((_, i) => i !== index));
+            setSelected({});
+          }}>Remove stay {index + 1}</button>
+        </div>
+        {exact && <p className="text-sm">{exact.length ? exact.length + " catalogue matches" : alternatives?.length ? "No exact matches. Nearby alternatives:" : "No matches. Review the city, area, stars, and distance."}</p>}
+        <div className="grid gap-2 sm:grid-cols-2">{(exact?.length ? exact : alternatives)?.map(hotel => {
+          const selectedHotel = selected[index]?.id === hotel.id;
+          return <div key={hotel.id} className="space-y-1 rounded border p-2 text-sm">
+            <strong>{hotel.name}</strong>
+            <p>{[hotel.area, hotel.road, hotel.starRating && hotel.starRating + "★"].filter(Boolean).join(" · ")}</p>
+            <p>{hotel.distanceToHaramM === null ? "Walking distance unknown" : hotel.distanceToHaramM + " m to " + (hotel.distanceReference ?? "unspecified entrance")}
+              {hotel.distanceToHaramM !== null && !hotel.distanceVerifiedOn && " · Unverified"}
+              {hotel.shuttleAvailable && " · Shuttle available"}</p>
+            {!exact?.length && <p>{distanceDifference(hotel, stay)} m {hotel.distanceToHaramM! < Number(stay.min) ? "below your minimum" : "beyond your maximum"}</p>}
+            {hotel.isActive ? <button type="button" className={button} aria-pressed={selectedHotel} disabled={busy}
+              onClick={() => setSelected({ ...selected, [index]: hotel })}>{selectedHotel ? "Selected" : "Shortlist for this stay"}</button>
+              : <p className="font-medium">Test record</p>}
+          </div>;
+        })}</div>
+      </fieldset>;
+    })}
+    {!!stays.length && <label className="flex gap-2 text-sm"><input type="checkbox" checked={includeTests} onChange={e => setIncludeTests(e.target.checked)} /> Include test hotels</label>}
+    {!!Object.keys(selected).length && <button className={button} type="button" disabled={busy} onClick={() => void save()}>Save shortlist to lead</button>}
+    {notice && <p role="status" className="text-sm">{notice}</p>}
+  </section>;
+}
+
+function distanceDifference(hotel: Hotel, stay: HotelStay) {
+  const distance = hotel.distanceToHaramM ?? 0;
+  return Math.max(0, stay.min ? Number(stay.min) - distance : 0, stay.max ? distance - Number(stay.max) : 0);
+}

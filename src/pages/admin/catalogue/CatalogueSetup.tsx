@@ -1,3 +1,4 @@
+import { matchesHotel } from "../../../utils/hotelSearch";
 import { FileCheck2, Hotel, MapPin, Pencil, Plus, ScrollText, Trash2 } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Modal } from "../../../components/Modal";
@@ -163,14 +164,9 @@ function Hotels() {
   const [editing, setEditing] = useState<HotelRow | "new" | null>(null);
   const noFilters = { city: "", location: "", stars: [] as number[], min: "", max: "" };
   const [filters, setFilters] = useState(noFilters);
-  const location = filters.location.trim().normalize("NFKC").toLowerCase();
   const invalidRange = filters.min !== "" && filters.max !== "" && Number(filters.min) > Number(filters.max);
   const matches = invalidRange ? [] : (data ?? []).filter(h =>
-    (!filters.city || h.destinationId === filters.city)
-    && (!location || [h.area, h.road, h.locationAliases].some(value => value?.normalize("NFKC").toLowerCase().includes(location)))
-    && (!filters.stars.length || (h.starRating !== null && filters.stars.includes(h.starRating)))
-    && (!filters.min || (h.distanceToHaramM !== null && h.distanceToHaramM >= Number(filters.min)))
-    && (!filters.max || (h.distanceToHaramM !== null && h.distanceToHaramM <= Number(filters.max))),
+    (!filters.city || h.destinationId === filters.city) && matchesHotel(h, filters),
   );
   const empty = { name: "", destinationId: "", starRating: "", distanceToHaramM: "", area: "", road: "", locationAliases: "", distanceReference: "", distanceVerifiedOn: "", shuttleAvailable: "", address: "", notes: "", isActive: true };
   const [f, setF] = useState(empty);
