@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { quoteCurrencies, type DraftLine } from "../../../utils/hotelQuote";
+import { useEffect, useState, useRef, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMe } from "../../../redux/hooks";
 import { api, fieldErrors } from "../../../utils/api";
@@ -244,12 +245,14 @@ export function LeadDetail() {
   const [owners, setOwners] = useState<Owners>([]);
   const [stage, setStage] = useState("new");
   const [editingContact, setEditingContact] = useState(false);
-  const [lines, setLines] = useState([{ key: 0 }]);
+  const [lines, setLines] = useState<{ key: number; draft?: DraftLine }[]>([{ key: 0 }]);
+  const quoteForm = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error?: boolean }>();
   useEffect(() => {
     let active = true;
     setDetails(undefined);
+    setLines([{ key: 0 }]);
     setNotice(undefined);
     void api.get<LeadDetails>(path).then(data => { if (active) { setDetails(data); setStage(data.lead.stage); } })
       .catch(error => { if (active) setNotice({ text: message(error), error: true }); });
@@ -296,6 +299,45 @@ export function LeadDetail() {
     const get = values(event);
     if (await run(() => api.post(path + "/events", { kind: get("kind"), details: get("details"), reachedCustomer: !!get("reached") }), "Activity recorded.")) form.reset();
   }
+  function addHotelPrices(items: DraftLine[], priceCurrency: string) {
+    const form = quoteForm.current;
+    if (!form || !items.length) return false;
+    const data = new FormData(form);
+    const existing = lines.filter(({ key }) => data.get("item-" + key) || data.get("price-" + key));
+    const currency = form.elements.namedItem("currency");
+    if (items.some(item => existing.some(({ key }) => data.get("item-" + key) === item.label))) {
+      setNotice({ text: "One of these stays is already in the quote. Edit or remove its line before adding it again.", error: true });
+      return false;
+    }
+    if (existing.length + items.length > 30) {
+      setNotice({ text: "The quote can hold a maximum of 30 lines.", error: true });
+      return false;
+    }
+    if (currency instanceof HTMLSelectElement && currency.value !== priceCurrency) {
+      if (existing.length) {
+        setNotice({ text: "Hotel rates must use the same currency as the existing quote lines.", error: true });
+        return false;
+      }
+      currency.value = priceCurrency;
+    }
+    const start = Math.max(...lines.map(line => line.key)) + 1;
+    setLines([...existing, ...items.map((draft, i) => ({ key: start + i, draft }))]);
+    setNotice(undefined);
+    return true;
+  }
+
+  async function copyQuote(quote: Quote) {
+    const money = (minor: number) => new Intl.NumberFormat("en", { style: "currency", currency: quote.currency }).format(minor / 100);
+    const lines = quote.lines.map(line => line.label + " — " + money(line.quantity * line.unitMinor));
+    const total = quote.lines.reduce((sum, line) => sum + line.quantity * line.unitMinor, 0);
+    try {
+      await navigator.clipboard.writeText(["Haram Pak travel quote", ...lines, "Total: " + money(total), "Valid through " + quote.validUntil].join("\n"));
+      setNotice({ text: "Quote summary copied for WhatsApp." });
+    } catch {
+      setNotice({ text: "Could not copy the quote summary. Download the PDF to share it.", error: true });
+    }
+  }
+
   async function createQuote(event: FormEvent<HTMLFormElement>) {
     const form = event.currentTarget;
     const get = values(event);
@@ -361,20 +403,20 @@ export function LeadDetail() {
         </form>
         <ol className="max-h-96 space-y-2 overflow-auto">{events.map(event => <li key={event.id} className="border-t pt-2 text-sm"><strong>{pretty(event.kind)}</strong> · {date(event.createdAt)} · {event.actor ?? "System"}<NoteDetails value={event.details} /></li>)}</ol>
       </section>
-      {!closed && <HotelEnquiry key={path} path={path} onSave={summary => run(() => api.post(path + "/events", { kind: "note", details: summary }), "Hotel shortlist saved.")} />}
+      {!closed && <HotelEnquiry key={path} path={path} travelDate={lead.travelDate} travellers={lead.travellers} onPrice={addHotelPrices} onSave={summary => run(() => api.post(path + "/events", { kind: "note", details: summary }), "Hotel shortlist saved.")} />}
       <section className={panel}><h2 className="font-semibold">Quotes</h2>
         <ul className="space-y-2">{quotes.map(quote => <li className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm" key={quote.id}>
           <span>Revision {quote.revision} · {quote.currency} · Valid through {quote.validUntil} · {quote.sentAt ? "Sent " + date(quote.sentAt) : "Ready to send"}</span>
-          <div className="flex gap-2"><button className={button} onClick={() => void download(quote)}>Download PDF</button>
+          <div className="flex gap-2"><button className={button} onClick={() => void download(quote)}>Download PDF</button><button className={button} onClick={() => void copyQuote(quote)}>Copy summary</button>
             {!closed && !quote.sentAt && <button className={button} disabled={busy} onClick={() => void run(() => api.post(path + "/quotes/" + quote.id + "/sent"), "Quote marked sent.")}>Mark sent</button>}</div>
         </li>)}</ul>
-        {!closed && <form className="space-y-3" onSubmit={createQuote}>
-          <div className="grid grid-cols-2 gap-2"><Field label="Currency"><select className={input} name="currency">{["PKR", "SAR", "USD", "CAD", "GBP", "EUR"].map(code => <option key={code}>{code}</option>)}</select></Field>
+        {!closed && <form className="space-y-3" ref={quoteForm} onSubmit={createQuote}>
+          <div className="grid grid-cols-2 gap-2"><Field label="Currency"><select className={input} name="currency">{quoteCurrencies.map(code => <option key={code}>{code}</option>)}</select></Field>
             <Field label="Valid through"><input className={input} type="date" name="valid" min={new Date().toISOString().slice(0, 10)} required /></Field></div>
-          {lines.map(({ key }, index) => <div key={key} className="grid grid-cols-2 gap-2 border-t pt-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
-            <Field label={"Item " + (index + 1)}><input className={input} name={"item-" + key} required maxLength={180} /></Field>
-            <Field label="Quantity"><input className={input} type="number" min="1" max="1000" name={"quantity-" + key} defaultValue="1" required /></Field>
-            <Field label="Unit price"><input className={input} type="number" min="0" max="10000000" step="0.01" name={"price-" + key} required /></Field>
+          {lines.map(({ key, draft }, index) => <div key={key} className="grid grid-cols-2 gap-2 border-t pt-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
+            <Field label={"Item " + (index + 1)}><input className={input} name={"item-" + key} defaultValue={draft?.label} required maxLength={180} /></Field>
+            <Field label="Quantity"><input className={input} type="number" min="1" max="1000" name={"quantity-" + key} defaultValue={draft?.quantity ?? 1} required /></Field>
+            <Field label="Unit price"><input className={input} type="number" min="0" max="10000000" step="0.01" name={"price-" + key} defaultValue={draft ? draft.unitMinor / 100 : undefined} required /></Field>
             {lines.length > 1 && <button type="button" className={button} onClick={() => setLines(prev => prev.filter(row => row.key !== key))}>Remove item {index + 1}</button>}
           </div>)}
           <button type="button" className={button} disabled={lines.length >= 30} onClick={() => setLines(prev => [...prev, { key: Math.max(...prev.map(row => row.key)) + 1 }])}>Add line item</button>

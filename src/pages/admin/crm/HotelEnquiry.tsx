@@ -1,3 +1,4 @@
+import { hotelQuoteLine, quoteCurrencies, type DraftLine, type StayPricing } from "../../../utils/hotelQuote";
 import { useState } from "react";
 import { api } from "../../../utils/api";
 import { matchesHotel, normalizeHotelText, suggestHotelStays, type HotelMatchFields, type HotelStay } from "../../../utils/hotelSearch";
@@ -12,13 +13,16 @@ const button = "rounded-md border border-brand-700 px-3 py-2 text-sm font-semibo
 const blank = (city: HotelStay["city"] = "Makkah"): HotelStay => ({ city, location: "", stars: [], min: "", max: "" });
 const cityAliases = { Makkah: ["makkah", "mecca"], Madinah: ["madinah", "madina", "medina"] };
 
-export default function HotelEnquiry({ path, onSave }: {
-  path: string; onSave: (summary: string) => Promise<boolean>;
+export default function HotelEnquiry({ path, travelDate, travellers, onPrice, onSave }: {
+  path: string; travelDate?: string | null; travellers?: number | null;
+  onPrice: (lines: DraftLine[], currency: string) => boolean; onSave: (summary: string) => Promise<boolean>;
 }) {
   const [enquiry, setEnquiry] = useState("");
   const [stays, setStays] = useState<HotelStay[]>([]);
   const [catalogue, setCatalogue] = useState<Hotel[]>();
   const [selected, setSelected] = useState<Record<number, Hotel>>({});
+  const [pricing, setPricing] = useState<Record<number, StayPricing>>({});
+  const [currency, setCurrency] = useState("SAR");
   const [includeTests, setIncludeTests] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -43,6 +47,20 @@ export default function HotelEnquiry({ path, onSave }: {
       setCatalogue(undefined);
       setNotice(error instanceof Error ? error.message : "Hotel catalogue could not be loaded.");
     } finally { setBusy(false); }
+  }
+
+  function setPrice(index: number, patch: Partial<StayPricing>) {
+    setPricing(current => ({ ...current, [index]: { ...current[index], ...patch } }));
+  }
+
+  function priceShortlist() {
+    const choices = Object.entries(selected);
+    const lines = choices.map(([index, hotel]) => hotelQuoteLine(hotel.name, pricing[Number(index)]));
+    if (lines.some(line => !line)) {
+      setNotice("Check dates, room and guest counts, confirmed capacity, and the nightly selling rate for each shortlisted hotel.");
+      return;
+    }
+    if (onPrice(lines.filter(line => line !== undefined), currency)) setNotice("Hotel prices added to the quote below.");
   }
 
   async function save() {
@@ -123,14 +141,46 @@ export default function HotelEnquiry({ path, onSave }: {
               {hotel.shuttleAvailable && " · Shuttle available"}</p>
             {!exact?.length && <p>{distanceDifference(hotel, stay)} m {hotel.distanceToHaramM! < Number(stay.min) ? "below your minimum" : "beyond your maximum"}</p>}
             {hotel.isActive ? <button type="button" className={button} aria-pressed={selectedHotel} disabled={busy}
-              onClick={() => setSelected({ ...selected, [index]: hotel })}>{selectedHotel ? "Selected" : "Shortlist for this stay"}</button>
+              onClick={() => {
+                setSelected({ ...selected, [index]: hotel });
+                setPrice(index, { checkIn: pricing[index]?.checkIn || pricing[index - 1]?.checkOut || (index === 0 ? travelDate?.slice(0, 10) ?? "" : ""),
+                  checkOut: pricing[index]?.checkOut ?? "", guests: pricing[index]?.guests ?? String(travellers ?? ""),
+                  rooms: pricing[index]?.rooms ?? "1", capacity: "", rate: "" });
+              }}>{selectedHotel ? "Selected" : "Shortlist for this stay"}</button>
               : <p className="font-medium">Test record</p>}
           </div>;
         })}</div>
       </fieldset>;
     })}
     {!!stays.length && <label className="flex gap-2 text-sm"><input type="checkbox" checked={includeTests} onChange={e => setIncludeTests(e.target.checked)} /> Include test hotels</label>}
-    {!!Object.keys(selected).length && <button className={button} type="button" disabled={busy} onClick={() => void save()}>Save shortlist to lead</button>}
+    {!!Object.keys(selected).length && <div className="space-y-3 rounded-md border p-3">
+      <h3 className="font-semibold">Price shortlisted stays</h3>
+      <p className="text-sm text-slate-600">Enter the confirmed room capacity and nightly selling rate for the full stay. For rates that change mid-stay, enter separate quote lines for each rate period.</p>
+      <label className="block max-w-36 text-sm">Quote currency<select className={field} value={currency} onChange={event => setCurrency(event.target.value)}>
+        {quoteCurrencies.map(code => <option key={code}>{code}</option>)}
+      </select></label>
+      {Object.entries(selected).map(([key, hotel]) => {
+        const index = Number(key);
+        const stay = pricing[index];
+        const line = hotelQuoteLine(hotel.name, stay);
+        return <fieldset className="grid gap-2 rounded border p-2 sm:grid-cols-3" key={key}>
+          <legend className="px-1 text-sm font-semibold">Stay {index + 1} · {hotel.name}</legend>
+          {([
+            ["checkIn", "Check-in", "date"], ["checkOut", "Checkout", "date"], ["guests", "Guests", "number"],
+            ["rooms", "Rooms", "number"], ["capacity", "Guests allowed per room", "number"], ["rate", "Selling rate per room per night", "number"],
+          ] as const).map(([name, label, type]) =>
+            <label key={name} className="text-sm">{label}
+              <input className={field} type={type} min={type === "number" ? (name === "rate" ? "0.01" : "1") : undefined}
+                step={name === "rate" ? "0.01" : undefined} value={stay[name]} onChange={event => setPrice(index, { [name]: event.target.value })} />
+            </label>)}
+          {line && <p className="text-sm sm:col-span-3">Stay total <strong>{currency} {(line.unitMinor * line.quantity / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></p>}
+        </fieldset>;
+      })}
+      <div className="flex flex-wrap gap-2">
+        <button className={button} type="button" disabled={busy} onClick={priceShortlist}>Add priced stays to quote</button>
+        <button className={button} type="button" disabled={busy} onClick={() => void save()}>Save shortlist to lead</button>
+      </div>
+    </div>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
   </section>;
 }
