@@ -146,10 +146,10 @@ crmRoutes.get("/leads/:id/hotel-catalogue", h(async (req, res) => {
     locationAliases: hotels.locationAliases, starRating: hotels.starRating,
     distanceToHaramM: hotels.distanceToHaramM, distanceReference: hotels.distanceReference,
     distanceVerifiedOn: hotels.distanceVerifiedOn, shuttleAvailable: hotels.shuttleAvailable,
-    isActive: hotels.isActive,
+    indicativeNightlySar: hotels.indicativeNightlySar,
   }).from(hotels).innerJoin(destinations, eq(destinations.id, hotels.destinationId))
     .where(and(inArray(sql`lower(${destinations.city})`, ["makkah", "mecca", "madinah", "madina", "medina"]),
-      or(and(eq(hotels.isActive, true), eq(destinations.isActive, true)), ilike(hotels.name, "TEST · %"))))
+      eq(hotels.isActive, true), eq(destinations.isActive, true)))
     .orderBy(asc(hotels.name));
   ok(res, rows);
 }));

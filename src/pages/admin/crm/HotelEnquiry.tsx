@@ -5,7 +5,7 @@ import { matchesHotel, normalizeHotelText, suggestHotelStays, type HotelMatchFie
 
 type Hotel = HotelMatchFields & {
   id: string; name: string; city: string; distanceReference: string | null;
-  distanceVerifiedOn: string | null; shuttleAvailable: boolean | null; isActive: boolean;
+  distanceVerifiedOn: string | null; shuttleAvailable: boolean | null; indicativeNightlySar: number | null;
 };
 
 const field = "w-full rounded-md border bg-white p-2 text-sm";
@@ -23,7 +23,6 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
   const [selected, setSelected] = useState<Record<number, Hotel>>({});
   const [pricing, setPricing] = useState<Record<number, StayPricing>>({});
   const [currency, setCurrency] = useState("SAR");
-  const [includeTests, setIncludeTests] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
 
@@ -60,13 +59,13 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
       setNotice("Check dates, room and guest counts, confirmed capacity, and the nightly selling rate for each shortlisted hotel.");
       return;
     }
-    if (onPrice(lines.filter(line => line !== undefined), currency)) setNotice("Hotel prices added to the quote below.");
+    if (onPrice(lines.filter(line => line !== undefined).map(line => ({ ...line, label: line.label.slice(0, 155) + " · On request" })), currency)) setNotice("Hotel prices added to the quote below.");
   }
 
   async function save() {
     const summary = stays.flatMap((stay, index) => {
       const hotel = selected[index];
-      if (!hotel || !hotel.isActive) return [];
+      if (!hotel) return [];
       const distance = hotel.distanceToHaramM === null ? "distance unknown"
         : hotel.distanceToHaramM + " m" + (hotel.distanceReference ? " to " + hotel.distanceReference : "") + (hotel.distanceVerifiedOn ? "" : " (unverified)");
       return [`Stay ${index + 1} · ${stay.city}: ${hotel.name} · ${distance}`];
@@ -104,7 +103,7 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
       {!!stays.length && <button type="button" className={button} disabled={busy || stays.some(({ min, max }) => (min && Number(min) < 0) || (max && Number(max) < 0) || (min && max && Number(min) > Number(max)))} onClick={() => void search()}>{busy && !catalogue ? "Loading…" : "Search catalogue"}</button>}
     </div>
     {stays.map((stay, index) => {
-      const available = catalogue?.filter(hotel => (hotel.isActive || includeTests) && cityAliases[stay.city].includes(normalizeHotelText(hotel.city)));
+      const available = catalogue?.filter(hotel => cityAliases[stay.city].includes(normalizeHotelText(hotel.city)));
       const exact = available?.filter(hotel => matchesHotel(hotel, stay));
       const alternatives = exact?.length === 0 ? available?.filter(hotel => matchesHotel(hotel, { ...stay, min: "", max: "" }))
         .filter(hotel => hotel.distanceToHaramM !== null && !!(stay.min || stay.max))
@@ -140,23 +139,22 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
               {hotel.distanceToHaramM !== null && !hotel.distanceVerifiedOn && " · Unverified"}
               {hotel.shuttleAvailable && " · Shuttle available"}</p>
             {!exact?.length && <p>{distanceDifference(hotel, stay)} m {hotel.distanceToHaramM! < Number(stay.min) ? "below your minimum" : "beyond your maximum"}</p>}
-            {hotel.isActive ? <button type="button" className={button} aria-pressed={selectedHotel} disabled={busy}
+            <p>Room availability on request{hotel.indicativeNightlySar !== null && " · Indicative SAR " + hotel.indicativeNightlySar + " per room/night"}</p>
+            <button type="button" className={button} aria-pressed={selectedHotel} disabled={busy}
               onClick={() => {
                 setSelected({ ...selected, [index]: hotel });
                 setPrice(index, { checkIn: pricing[index]?.checkIn || pricing[index - 1]?.checkOut || (index === 0 ? travelDate?.slice(0, 10) ?? "" : ""),
                   checkOut: pricing[index]?.checkOut ?? "", guests: pricing[index]?.guests ?? String(travellers ?? ""),
-                  rooms: pricing[index]?.rooms ?? "1", capacity: "", rate: "" });
+                  rooms: pricing[index]?.rooms ?? "1", capacity: "", rate: currency === "SAR" && hotel.indicativeNightlySar !== null ? String(hotel.indicativeNightlySar) : "" });
               }}>{selectedHotel ? "Selected" : "Shortlist for this stay"}</button>
-              : <p className="font-medium">Test record</p>}
           </div>;
         })}</div>
       </fieldset>;
     })}
-    {!!stays.length && <label className="flex gap-2 text-sm"><input type="checkbox" checked={includeTests} onChange={e => setIncludeTests(e.target.checked)} /> Include test hotels</label>}
     {!!Object.keys(selected).length && <div className="space-y-3 rounded-md border p-3">
       <h3 className="font-semibold">Price shortlisted stays</h3>
-      <p className="text-sm text-slate-600">Enter the confirmed room capacity and nightly selling rate for the full stay. For rates that change mid-stay, enter separate quote lines for each rate period.</p>
-      <label className="block max-w-36 text-sm">Quote currency<select className={field} value={currency} onChange={event => setCurrency(event.target.value)}>
+      <p className="text-sm text-slate-600">Check room availability and capacity with the supplier. Review the nightly selling rate before adding the stay. For rates that change mid-stay, enter separate quote lines for each rate period.</p>
+      <label className="block max-w-36 text-sm">Quote currency<select className={field} value={currency} onChange={event => { setCurrency(event.target.value); setPricing(current => Object.fromEntries(Object.entries(current).map(([index, stay]) => [index, { ...stay, rate: "" }]))); }}>
         {quoteCurrencies.map(code => <option key={code}>{code}</option>)}
       </select></label>
       {Object.entries(selected).map(([key, hotel]) => {

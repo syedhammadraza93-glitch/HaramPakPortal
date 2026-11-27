@@ -120,6 +120,13 @@
       "when": 1795757747311,
       "tag": "0016_hotel_catalogue_test_data",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795759844358,
+      "tag": "0017_activate_catalogue_hotels",
+      "breakpoints": true
     }
   ]
 }

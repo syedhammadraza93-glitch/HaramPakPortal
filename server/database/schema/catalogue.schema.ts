@@ -53,6 +53,7 @@ export const hotels = pgTable(
     distanceReference: varchar("distance_reference", { length: 150 }),
     distanceVerifiedOn: date("distance_verified_on"),
     shuttleAvailable: boolean("shuttle_available"),
+    indicativeNightlySar: money("indicative_nightly_sar"),
     address: text("address"),
     notes: text("notes"),
     isActive: boolean("is_active").default(true).notNull(),
