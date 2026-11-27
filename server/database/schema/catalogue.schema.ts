@@ -47,6 +47,12 @@ export const hotels = pgTable(
     starRating: integer("star_rating"),
     /** Walking distance to the Haram (Makkah/Madinah), in metres. */
     distanceToHaramM: integer("distance_to_haram_m"),
+    area: varchar("area", { length: 120 }),
+    road: varchar("road", { length: 120 }),
+    locationAliases: varchar("location_aliases", { length: 400 }),
+    distanceReference: varchar("distance_reference", { length: 150 }),
+    distanceVerifiedOn: date("distance_verified_on"),
+    shuttleAvailable: boolean("shuttle_available"),
     address: text("address"),
     notes: text("notes"),
     isActive: boolean("is_active").default(true).notNull(),

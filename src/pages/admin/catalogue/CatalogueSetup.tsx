@@ -153,7 +153,7 @@ function Destinations() {
 }
 
 // ---------------- Hotels ----------------
-interface HotelRow { id: string; name: string; destinationId: string; city: string; country: string; starRating: number | null; distanceToHaramM: number | null; address: string | null; notes: string | null; isActive: boolean }
+interface HotelRow { id: string; name: string; destinationId: string; city: string; country: string; starRating: number | null; distanceToHaramM: number | null; area: string | null; road: string | null; locationAliases: string | null; distanceReference: string | null; distanceVerifiedOn: string | null; shuttleAvailable: boolean | null; address: string | null; notes: string | null; isActive: boolean }
 
 function Hotels() {
   const canManage = useCan("catalogue.manage");
@@ -161,32 +161,62 @@ function Hotels() {
   const { data: dests } = useApi<Destination[]>("/admin/catalogue/destinations");
   const crud = useCrud("/admin/catalogue/hotels", reload);
   const [editing, setEditing] = useState<HotelRow | "new" | null>(null);
-  const empty = { name: "", destinationId: "", starRating: "", distanceToHaramM: "", address: "", notes: "", isActive: true };
+  const noFilters = { city: "", location: "", stars: [] as number[], min: "", max: "" };
+  const [filters, setFilters] = useState(noFilters);
+  const location = filters.location.trim().normalize("NFKC").toLowerCase();
+  const invalidRange = filters.min !== "" && filters.max !== "" && Number(filters.min) > Number(filters.max);
+  const matches = invalidRange ? [] : (data ?? []).filter(h =>
+    (!filters.city || h.destinationId === filters.city)
+    && (!location || [h.area, h.road, h.locationAliases].some(value => value?.normalize("NFKC").toLowerCase().includes(location)))
+    && (!filters.stars.length || (h.starRating !== null && filters.stars.includes(h.starRating)))
+    && (!filters.min || (h.distanceToHaramM !== null && h.distanceToHaramM >= Number(filters.min)))
+    && (!filters.max || (h.distanceToHaramM !== null && h.distanceToHaramM <= Number(filters.max))),
+  );
+  const empty = { name: "", destinationId: "", starRating: "", distanceToHaramM: "", area: "", road: "", locationAliases: "", distanceReference: "", distanceVerifiedOn: "", shuttleAvailable: "", address: "", notes: "", isActive: true };
   const [f, setF] = useState(empty);
 
   const open = (h: HotelRow | "new") => {
     crud.setErrors({});
-    setF(h === "new" ? empty : { name: h.name, destinationId: h.destinationId, starRating: h.starRating?.toString() ?? "", distanceToHaramM: h.distanceToHaramM?.toString() ?? "", address: h.address ?? "", notes: h.notes ?? "", isActive: h.isActive });
+    setF(h === "new" ? empty : { name: h.name, destinationId: h.destinationId, starRating: h.starRating?.toString() ?? "", distanceToHaramM: h.distanceToHaramM?.toString() ?? "", area: h.area ?? "", road: h.road ?? "", locationAliases: h.locationAliases ?? "", distanceReference: h.distanceReference ?? "", distanceVerifiedOn: h.distanceVerifiedOn ?? "", shuttleAvailable: h.shuttleAvailable == null ? "" : String(h.shuttleAvailable), address: h.address ?? "", notes: h.notes ?? "", isActive: h.isActive });
     setEditing(h);
   };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (await crud.save(editing === "new" ? null : (editing as HotelRow).id, { ...f, address: f.address || null, notes: f.notes || null })) setEditing(null);
+    if (await crud.save(editing === "new" ? null : (editing as HotelRow).id, { ...f, distanceVerifiedOn: f.distanceVerifiedOn || null, shuttleAvailable: f.shuttleAvailable === "" ? null : f.shuttleAvailable === "true", address: f.address || null, notes: f.notes || null })) setEditing(null);
   };
 
   return (
     <Card className="overflow-hidden">
       <div className="flex justify-end border-b border-slate-100 p-3">{canManage && <Button icon={Plus} onClick={() => open("new")} disabled={!dests?.length}>Add hotel</Button>}</div>
+      <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="City"><Select value={filters.city} onChange={e => setFilters({ ...filters, city: e.target.value })}>
+          <option value="">All cities</option>
+          {(dests ?? []).map(d => <option key={d.id} value={d.id}>{d.city}</option>)}
+        </Select></Field>
+        <Field label="Area or road"><Input placeholder="e.g. Markaziyah" value={filters.location} onChange={e => setFilters({ ...filters, location: e.target.value })} /></Field>
+        <Field label="Minimum walking distance (m)"><Input type="number" min={0} value={filters.min} onChange={e => setFilters({ ...filters, min: e.target.value })} /></Field>
+        <Field label="Maximum walking distance (m)"><Input type="number" min={0} value={filters.max} onChange={e => setFilters({ ...filters, max: e.target.value })} /></Field>
+        <fieldset className="flex flex-wrap items-center gap-3 sm:col-span-2">
+          <legend className="text-sm font-medium">Star ratings</legend>
+          {[1, 2, 3, 4, 5, 6, 7].map(star => <Checkbox key={star} label={star + "★"} checked={filters.stars.includes(star)}
+            onChange={e => setFilters({ ...filters, stars: e.target.checked ? [...filters.stars, star] : filters.stars.filter(value => value !== star) })} />)}
+        </fieldset>
+        <div className="self-end"><Button variant="secondary" onClick={() => setFilters(noFilters)}>Clear filters</Button></div>
+        {invalidRange && <p role="alert" className="text-sm text-red-700 sm:col-span-2">Minimum distance must be at most the maximum distance.</p>}
+      </div>
       {loading && !data ? <Spinner /> : !data?.length ? (
         <EmptyState icon={Hotel} title="No hotels">{dests?.length ? "Add the hotels used in your packages." : "Add a destination first."}</EmptyState>
+      ) : !matches.length ? (
+        <EmptyState icon={Hotel} title="No matching hotels">Try changing the area, rating, or walking distance.</EmptyState>
       ) : (
-        <Table head={["Hotel", "City", "Stars", "Distance to Haram", "Status", ""]}>
-          {data.map((h) => (
+        <Table head={["Hotel", "City", "Area and road", "Stars", "Walking distance", "Status", ""]}>
+          {matches.map((h) => (
             <tr key={h.id}>
               <td className="px-4 py-2.5 font-medium text-slate-800">{h.name}</td>
               <td className="px-4 py-2.5 text-slate-600">{h.city}, {h.country}</td>
+              <td className="px-4 py-2.5 text-slate-600">{[h.area, h.road].filter(Boolean).join(" · ") || "—"}</td>
               <td className="px-4 py-2.5 text-slate-600">{h.starRating ? `${h.starRating}★` : "—"}</td>
-              <td className="px-4 py-2.5 text-slate-600">{h.distanceToHaramM !== null ? `${h.distanceToHaramM} m` : "—"}</td>
+              <td className="px-4 py-2.5 text-slate-600">{h.distanceToHaramM !== null ? `${h.distanceToHaramM} m` : "—"}{h.distanceToHaramM !== null && <span className="block text-xs">{h.distanceReference || "Landmark unspecified"} · {h.distanceVerifiedOn ? "Checked " + h.distanceVerifiedOn : "Unverified"}</span>}{h.shuttleAvailable && <span className="block text-xs">Shuttle available</span>}</td>
               <td className="px-4 py-2.5">{h.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</td>
               {canManage ? <RowActions onEdit={() => open(h)} onDelete={() => crud.remove(h.id, h.name)} /> : <td />}
             </tr>
@@ -203,7 +233,13 @@ function Hotels() {
             </Select>
           </Field>
           <Field label="Star rating" error={crud.errors.starRating}><Input type="number" min={1} max={7} value={f.starRating} onChange={(e) => setF({ ...f, starRating: e.target.value })} /></Field>
-          <Field label="Distance to Haram (metres)" hint="For Makkah and Madinah hotels" error={crud.errors.distanceToHaramM}><Input type="number" min={0} value={f.distanceToHaramM} onChange={(e) => setF({ ...f, distanceToHaramM: e.target.value })} /></Field>
+          <Field label="Walking distance (metres)" hint="Measure to the mosque or entrance specified below" error={crud.errors.distanceToHaramM}><Input type="number" min={0} value={f.distanceToHaramM} onChange={(e) => setF({ ...f, distanceToHaramM: e.target.value })} /></Field>
+          <Field label="Area or neighbourhood" error={crud.errors.area}><Input maxLength={120} value={f.area} onChange={e => setF({ ...f, area: e.target.value })} /></Field>
+          <Field label="Road" error={crud.errors.road}><Input maxLength={120} value={f.road} onChange={e => setF({ ...f, road: e.target.value })} /></Field>
+          <Field label="Location aliases" hint="Alternate spellings, including Urdu" error={crud.errors.locationAliases}><Input maxLength={400} value={f.locationAliases} onChange={e => setF({ ...f, locationAliases: e.target.value })} /></Field>
+          <Field label="Mosque or entrance" error={crud.errors.distanceReference}><Input maxLength={150} value={f.distanceReference} onChange={e => setF({ ...f, distanceReference: e.target.value })} /></Field>
+          <Field label="Distance checked on" error={crud.errors.distanceVerifiedOn}><Input type="date" value={f.distanceVerifiedOn} onChange={e => setF({ ...f, distanceVerifiedOn: e.target.value })} /></Field>
+          <Field label="Shuttle available" error={crud.errors.shuttleAvailable}><Select value={f.shuttleAvailable} onChange={e => setF({ ...f, shuttleAvailable: e.target.value })}><option value="">Unknown</option><option value="true">Yes</option><option value="false">No</option></Select></Field>
           <Field label="Address"><Input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></Field>
           <Field label="Notes" className="sm:col-span-2"><Textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} className="min-h-16" /></Field>
           <Checkbox label="Active" checked={f.isActive} onChange={(e) => setF({ ...f, isActive: e.target.checked })} />
