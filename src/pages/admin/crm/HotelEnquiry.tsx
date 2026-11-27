@@ -115,22 +115,37 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
       const available = catalogue?.filter(hotel => cityAliases[stay.city].includes(normalizeHotelText(hotel.city)));
       const requested = available?.find(hotel => hotel.id === stay.requestedHotel);
       const needsRating = stay.similar && !stay.stars.length;
-      const eligible = (requested && !stay.similar) || needsRating ? (requested ? [requested] : []) : available;
-      const exact = eligible?.filter(hotel => matchesHotel(hotel, stay))
-        .sort((a, b) => Number(b.id === stay.requestedHotel) - Number(a.id === stay.requestedHotel)
-          || (a.distanceToHaramM ?? Infinity) - (b.distanceToHaramM ?? Infinity));
-      const alternatives = exact?.length === 0 ? eligible?.filter(hotel => matchesHotel(hotel, { ...stay, min: "", max: "" }))
+      const candidates = available.filter(hotel => stay.candidates?.includes(hotel.id));
+      const eligible = stay.candidates?.length || ((requested || stay.unresolvedHotel) && !stay.similar) || needsRating ? [] : available;
+      const comparable = eligible.filter(hotel => hotel.id !== requested?.id);
+      const exact = comparable.filter(hotel => matchesHotel(hotel, stay))
+        .sort((a, b) => (a.distanceToHaramM ?? Infinity) - (b.distanceToHaramM ?? Infinity));
+      const alternatives = exact.length === 0 ? comparable.filter(hotel => matchesHotel(hotel, { ...stay, min: "", max: "" }))
         .filter(hotel => hotel.distanceToHaramM !== null && !!(stay.min || stay.max))
         .sort((a, b) => distanceDifference(a, stay) - distanceDifference(b, stay)).slice(0, 3) : [];
+      const results = [...(requested ? [requested] : []), ...candidates, ...(exact.length ? exact : alternatives)];
       return <fieldset key={index} className="space-y-2 rounded-md border p-3">
         <legend className="px-1 text-sm font-semibold">Stay {index + 1} · {stay.city}</legend>
+        <p className="text-sm text-slate-600">{[
+          stay.location, stay.stars.length ? stay.stars.map(star => star + "★").join(" / ") : "",
+          stay.max && (stay.min ? stay.min + "–" : "Up to ") + stay.max + " m",
+          stay.budget && "Up to SAR " + stay.budget + " per room/night",
+          stay.nights && stay.nights + " nights", stay.rooms && stay.rooms + " rooms",
+          stay.guests && stay.guests + " guests", stay.ramadanDay && stay.ramadanDay + " Ramadan · confirm calendar date",
+          stay.entrance, stay.noShuttle && "Walking only",
+        ].filter(Boolean).join(" · ")}</p>
+        {(requested || stay.unresolvedHotel) && !stay.similar && <button type="button" className={button} onClick={() => update(index, {
+          similar: true, stars: stay.stars.length || !requested?.starRating ? stay.stars : [requested.starRating],
+        })}>Show similar hotels</button>}
+        {stay.unresolvedHotel && !stay.similar && <p className="text-sm text-slate-600">The requested hotel could not be identified in the catalogue.</p>}
         <details className="text-sm">
           <summary className="cursor-pointer py-1 text-brand-800">Refine filters</summary>
           <div className="grid gap-2 py-2 sm:grid-cols-2 xl:grid-cols-4">
-            <label className="text-sm">City<select className={field} value={stay.city} onChange={e => update(index, { city: e.target.value === "Madinah" ? "Madinah" : "Makkah", location: "", requestedHotel: undefined, similar: false })}>
+            <label className="text-sm">City<select className={field} value={stay.city} onChange={e => update(index, { city: e.target.value === "Madinah" ? "Madinah" : "Makkah", location: "", requestedHotel: undefined, candidates: undefined, unresolvedHotel: false, similar: false })}>
               <option>Makkah</option><option>Madinah</option>
             </select></label>
             <label className="text-sm">Area or road<input className={field} value={stay.location} onChange={e => update(index, { location: e.target.value })} /></label>
+            <label className="text-sm">Maximum SAR per room/night<input className={field} type="number" min={1} value={stay.budget ?? ""} onChange={e => update(index, { budget: Number(e.target.value) || undefined })} /></label>
             <label className="text-sm">Minimum walk (m)<input className={field} type="number" min={0} value={stay.min} onChange={e => update(index, { min: e.target.value })} /></label>
             <label className="text-sm">Maximum walk (m)<input className={field} type="number" min={0} value={stay.max} onChange={e => update(index, { max: e.target.value })} /></label>
           </div>
@@ -143,14 +158,15 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
             <button type="button" className="ml-auto text-sm underline" disabled={busy} onClick={() => {
               setStays(stays.filter((_, i) => i !== index));
               setSelected({});
+              setPricing({});
             }}>Remove stay {index + 1}</button>
           </div>
         </details>
         {needsRating && <p className="text-sm text-slate-600">
           {requested ? "This hotel’s star rating is unavailable." : "The requested hotel could not be identified in the catalogue."} Choose a star rating under Refine filters to see similar hotels.
         </p>}
-        {exact && <p className="text-sm" role="status">{exact.length ? exact.length + " catalogue matches" : alternatives?.length ? "No exact matches. Nearby alternatives:" : "No matches. Review the city, area, stars, and distance."}</p>}
-        <div className="grid gap-2 sm:grid-cols-2">{(exact?.length ? exact : alternatives)?.map(hotel => {
+        <p className="text-sm" role="status">{candidates.length ? "Which hotel did the customer mean?" : !results.length ? "No matches. Review the city, area, stars, and distance." : alternatives.length ? "Nearby alternatives outside the requested distance:" : exact.length ? exact.length + " catalogue matches" : ""}</p>
+        <div className="grid gap-2 sm:grid-cols-2">{results.map(hotel => {
           const selectedHotel = selected[index]?.id === hotel.id;
           return <div key={hotel.id} className={"space-y-2 rounded-lg border p-3 text-sm " + (selectedHotel ? "border-brand-700 bg-brand-50" : "bg-white")}>
             <h3 className="text-base font-semibold">{hotel.name}</h3>
@@ -160,20 +176,33 @@ export default function HotelEnquiry({ path, travelDate, travellers, onPrice, on
             <p>{hotel.distanceToHaramM === null ? "Walking distance unknown" : hotel.distanceToHaramM + " m to " + (hotel.distanceReference ?? "unspecified entrance")}
               {hotel.distanceToHaramM !== null && !hotel.distanceVerifiedOn && " · Unverified"}
               {hotel.shuttleAvailable && " · Shuttle available"}</p>
-            {!exact?.length && <p>{distanceDifference(hotel, stay)} m {hotel.distanceToHaramM! < Number(stay.min) ? "below your minimum" : "beyond your maximum"}</p>}
+            {alternatives.includes(hotel) && <p>{distanceDifference(hotel, stay)} m {hotel.distanceToHaramM! < Number(stay.min) ? "below your minimum" : "beyond your maximum"}</p>}
+            {hotel.id === stay.requestedHotel && !matchesHotel(hotel, stay) && <p className="text-amber-800">Requested hotel falls outside the filters or has unverified details.</p>}
+            {stay.entrance && <p>{new RegExp("women|ladies", "i").test(hotel.distanceReference ?? "") ? "Entrance reference recorded above" : "Walking distance to the requested entrance is unverified."}</p>}
+            {stay.noShuttle && <p>Confirm the walking route for this stay.</p>}
             <p><span className="rounded bg-slate-100 px-2 py-1">Availability on request</span></p>
             {hotel.indicativeNightlySar !== null && <p><strong>SAR {hotel.indicativeNightlySar}</strong> / room / night <span className="text-slate-600">(indicative)</span></p>}
             <button type="button" className={button} aria-pressed={selectedHotel} disabled={busy}
               onClick={() => {
+                if (candidates.length) {
+                  update(index, { candidates: undefined, requestedHotel: hotel.id,
+                    stars: stay.stars.length || !stay.similar || !hotel.starRating ? stay.stars : [hotel.starRating] });
+                  return;
+                }
                 if (selectedHotel) {
                   update(index, {});
                   return;
                 }
                 setSelected({ ...selected, [index]: hotel });
-                setPrice(index, { checkIn: pricing[index]?.checkIn || pricing[index - 1]?.checkOut || (index === 0 ? travelDate?.slice(0, 10) ?? "" : ""),
-                  checkOut: pricing[index]?.checkOut ?? "", guests: pricing[index]?.guests ?? String(travellers ?? ""),
-                  rooms: pricing[index]?.rooms ?? "1", capacity: "", rate: currency === "SAR" && hotel.indicativeNightlySar !== null ? String(hotel.indicativeNightlySar) : "" });
-              }}>{selectedHotel ? "Selected" : "Select hotel"}</button>
+                const checkIn = pricing[index]?.checkIn || stay.checkIn || (!stay.ramadanDay ? pricing[index - 1]?.checkOut || (index === 0 ? travelDate?.slice(0, 10) ?? "" : "") : "");
+                const checkoutDate = new Date(checkIn + "T00:00:00Z");
+                checkoutDate.setUTCDate(checkoutDate.getUTCDate() + (stay.nights ?? 0));
+                const inferredCheckout = stay.nights && Number.isFinite(checkoutDate.getTime()) ? checkoutDate.toISOString().slice(0, 10) : "";
+                setPrice(index, { checkIn, checkOut: pricing[index]?.checkOut || stay.checkOut || inferredCheckout,
+                  guests: pricing[index]?.guests || String(stay.guests ?? travellers ?? ""),
+                  rooms: pricing[index]?.rooms || String(stay.rooms ?? 1), capacity: "",
+                  rate: currency === "SAR" && hotel.indicativeNightlySar != null ? String(hotel.indicativeNightlySar) : "" });
+              }}>{candidates.length ? "Use this hotel" : selectedHotel ? "Selected" : "Select hotel"}</button>
           </div>;
         })}</div>
       </fieldset>;
