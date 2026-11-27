@@ -6,6 +6,7 @@ import { destinations, hotels, crmSettings, leadEvents, leadQuotes, leads, leadS
 import { currentUser, jwtGuard, requirePermission } from "../middleware/auth.middleware";
 import { websiteEnquiryLimiter } from "../middleware/rateLimit";
 import { closedLeadStages, escalateOverdueLeads, getCrmSettings } from "../services/crmEscalations.service";
+import { findOnlineHotels, onlineHotelCandidate } from "../services/hotelLookup.service";
 import { renderLeadQuotePdf } from "../services/leadQuotePdf.service";
 import { asyncHandler as h, badRequest, conflict, forbidden, notFound, ok, parse } from "../utils/http";
 
@@ -152,6 +153,41 @@ crmRoutes.get("/leads/:id/hotel-catalogue", h(async (req, res) => {
       eq(hotels.isActive, true), eq(destinations.isActive, true)))
     .orderBy(asc(hotels.name));
   ok(res, rows);
+}));
+
+const lookupHotel = z.object({ name: text(120).min(3).regex(/^[\p{L}\p{M}\p{N} .&’'()-]+$/u), city: z.enum(["Makkah", "Madinah"]) }).strict();
+
+crmRoutes.post("/leads/:id/hotel-lookup", h(async (req, res) => {
+  await scopedLead(req);
+  const { name, city } = parse(lookupHotel, req.body);
+  ok(res, await findOnlineHotels(name, city));
+}));
+
+crmRoutes.post("/leads/:id/hotel-lookup/save", h(async (req, res) => {
+  await scopedLead(req);
+  const { id } = parse(z.object({ id: uid }).strict(), req.body);
+  const { name, city, address, sourceUrl } = onlineHotelCandidate(id);
+  const result = await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${city + ":hotel-catalogue"}))`);
+    const [destination] = await tx.select({ id: destinations.id }).from(destinations)
+      .where(and(eq(destinations.isActive, true), eq(destinations.city, city),
+        inArray(sql`lower(${destinations.country})`, ["saudi arabia", "ksa"]))).limit(1);
+    if (!destination) throw badRequest("This city is unavailable in the catalogue.");
+    const [existing] = await tx.select({ id: hotels.id, isActive: hotels.isActive }).from(hotels)
+      .innerJoin(destinations, eq(destinations.id, hotels.destinationId))
+      .where(and(eq(destinations.city, city), inArray(sql`lower(${destinations.country})`, ["saudi arabia", "ksa"]),
+        or(eq(sql`lower(${hotels.name})`, name.toLowerCase()), eq(hotels.notes, "Property source: " + sourceUrl))))
+      .limit(1);
+    if (existing) {
+      if (!existing.isActive) throw conflict("This property exists but is inactive. Ask a catalogue manager to review it.");
+      return { id: existing.id, added: false };
+    }
+    const [saved] = await tx.insert(hotels).values({
+      name, address, destinationId: destination.id, notes: "Property source: " + sourceUrl,
+    }).returning({ id: hotels.id });
+    return { id: saved.id, added: true };
+  });
+  ok(res, result);
 }));
 
 crmRoutes.get("/leads/:id", h(async (req, res) => {
